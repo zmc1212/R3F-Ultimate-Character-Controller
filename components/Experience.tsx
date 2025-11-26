@@ -1,11 +1,12 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Physics } from '@react-three/rapier';
-import { SoftShadows } from '@react-three/drei';
 import { useFrame } from '@react-three/fiber';
 import { Character } from './Character';
+import { RemoteCharacter } from './RemoteCharacter';
 import { World } from './World';
 import { ControlMode } from '../types';
 import * as THREE from 'three';
+import { io, Socket } from 'socket.io-client';
 
 interface ExperienceProps {
   controlMode: ControlMode;
@@ -52,8 +53,73 @@ const TargetMarker = ({ position }: { position: THREE.Vector3 | null }) => {
     );
 };
 
+interface PlayerData {
+  id?: string;
+  x: number;
+  y: number;
+  z: number;
+  rotation: number;
+  animation: string;
+}
+
 export const Experience: React.FC<ExperienceProps> = ({ controlMode }) => {
   const [targetLocation, setTargetLocation] = useState<THREE.Vector3 | null>(null);
+  
+  // Multiplayer State
+  const [socket, setSocket] = useState<Socket | null>(null);
+  const [players, setPlayers] = useState<Record<string, PlayerData>>({});
+
+  useEffect(() => {
+    // Attempt to connect to local server
+    const newSocket = io('http://localhost:3000', {
+        reconnectionAttempts: 5,
+        transports: ['websocket']
+    });
+
+    newSocket.on('connect', () => {
+        console.log('Connected to server with ID:', newSocket.id);
+    });
+
+    newSocket.on('init', (serverPlayers: Record<string, PlayerData>) => {
+        // Remove self from the list of remote players to render
+        const otherPlayers = { ...serverPlayers };
+        delete otherPlayers[newSocket.id as string];
+        setPlayers(otherPlayers);
+    });
+
+    newSocket.on('playerJoined', (player: PlayerData) => {
+        if (player.id !== newSocket.id) {
+            setPlayers((prev) => ({ ...prev, [player.id as string]: player }));
+        }
+    });
+
+    newSocket.on('playerMoved', (player: PlayerData) => {
+        setPlayers((prev) => ({
+            ...prev,
+            [player.id as string]: { ...prev[player.id as string], ...player }
+        }));
+    });
+
+    newSocket.on('playerLeft', (id: string) => {
+        setPlayers((prev) => {
+            const next = { ...prev };
+            delete next[id];
+            return next;
+        });
+    });
+
+    setSocket(newSocket);
+
+    return () => {
+        newSocket.disconnect();
+    };
+  }, []);
+
+  const handleCharacterUpdate = (data: { x: number; y: number; z: number; rotation: number; animation: string }) => {
+      if (socket && socket.connected) {
+          socket.emit('move', data);
+      }
+  };
 
   const handleFloorClick = (point: THREE.Vector3) => {
     if (controlMode === 'pointToClick') {
@@ -75,14 +141,27 @@ export const Experience: React.FC<ExperienceProps> = ({ controlMode }) => {
         <orthographicCamera attach="shadow-camera" args={[-20, 20, 20, -20]} />
       </directionalLight>
       <ambientLight intensity={0.5} />
-      <SoftShadows size={25} samples={10} focus={0} />
 
       {/* Physics World */}
       <Physics gravity={[0, -9.81, 0]}>
+        
+        {/* Local Player */}
         <Character 
           controlMode={controlMode} 
-          movementTarget={targetLocation} 
+          movementTarget={targetLocation}
+          onUpdate={handleCharacterUpdate}
         />
+
+        {/* Remote Players */}
+        {Object.entries(players).map(([id, p]) => (
+            <RemoteCharacter 
+                key={id} 
+                position={[p.x, p.y, p.z]} 
+                rotation={p.rotation} 
+                animation={p.animation} 
+            />
+        ))}
+
         <World onFloorClick={handleFloorClick} />
       </Physics>
 

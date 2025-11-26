@@ -11,11 +11,13 @@ const MODEL_URL = "https://raw.githubusercontent.com/mrdoob/three.js/master/exam
 interface CharacterProps {
   controlMode?: ControlMode;
   movementTarget?: THREE.Vector3 | null;
+  onUpdate?: (data: { x: number; y: number; z: number; rotation: number; animation: string }) => void;
 }
 
 export const Character: React.FC<CharacterProps> = ({ 
   controlMode = 'direct', 
-  movementTarget 
+  movementTarget,
+  onUpdate
 }) => {
   // Leva Controls
   const { 
@@ -72,6 +74,9 @@ export const Character: React.FC<CharacterProps> = ({
 
   // Rapier Raycasting for ground check and obstacle avoidance
   const { world, rapier } = useRapier();
+
+  // Throttling network updates
+  const lastUpdateRef = useRef(0);
 
   // Handle Mouse Drag for Camera
   useEffect(() => {
@@ -371,6 +376,19 @@ export const Character: React.FC<CharacterProps> = ({
     // Look at character
     const lookAtTarget = new THREE.Vector3(currentPos.x, currentPos.y + 1.5, currentPos.z);
     state.camera.lookAt(lookAtTarget);
+
+    // 10. NETWORK SYNC
+    // Emit updates ~20 times per second to save bandwidth
+    if (onUpdate && Date.now() - lastUpdateRef.current > 50) {
+        onUpdate({
+            x: currentPos.x,
+            y: currentPos.y,
+            z: currentPos.z,
+            rotation: currentRotation.current,
+            animation: newAnimation
+        });
+        lastUpdateRef.current = Date.now();
+    }
   });
 
   return (
