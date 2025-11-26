@@ -7,15 +7,40 @@
     <title>R3F Character Controller</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
-      @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap');
+      @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=Share+Tech+Mono&display=swap');
       body, html, #root {
         width: 100%;
         height: 100%;
         margin: 0;
         padding: 0;
         overflow: hidden;
-        font-family: 'Inter', sans-serif;
-        background-color: #111;
+        font-family: 'Share Tech Mono', monospace;
+        background-color: #050505;
+      }
+      /* Custom Scrollbar for Chat */
+      ::-webkit-scrollbar {
+        width: 6px;
+      }
+      ::-webkit-scrollbar-track {
+        background: rgba(0, 0, 0, 0.3);
+      }
+      ::-webkit-scrollbar-thumb {
+        background: rgba(0, 255, 204, 0.3);
+        border-radius: 3px;
+      }
+      ::-webkit-scrollbar-thumb:hover {
+        background: rgba(0, 255, 204, 0.6);
+      }
+      
+      /* Sci-Fi Clip Path */
+      .clip-path-polygon {
+        clip-path: polygon(
+          0 0,
+          100% 0,
+          100% calc(100% - 20px),
+          calc(100% - 20px) 100%,
+          0 100%
+        );
       }
     </style>
   <script type="importmap">

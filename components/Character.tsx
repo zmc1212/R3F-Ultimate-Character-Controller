@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { useFrame } from '@react-three/fiber';
-import { useKeyboardControls, useAnimations, useGLTF } from '@react-three/drei';
+import { useKeyboardControls, useAnimations, useGLTF, Html } from '@react-three/drei';
 import { RigidBody, RapierRigidBody, CapsuleCollider, useRapier } from '@react-three/rapier';
 import { useControls } from 'leva';
 import { Controls, ControlMode } from '../types';
@@ -12,12 +12,14 @@ interface CharacterProps {
   controlMode?: ControlMode;
   movementTarget?: THREE.Vector3 | null;
   onUpdate?: (data: { x: number; y: number; z: number; rotation: number; animation: string }) => void;
+  playerName?: string;
 }
 
 export const Character: React.FC<CharacterProps> = ({ 
   controlMode = 'direct', 
   movementTarget,
-  onUpdate
+  onUpdate,
+  playerName = "Player"
 }) => {
   // Leva Controls
   const { 
@@ -402,6 +404,12 @@ export const Character: React.FC<CharacterProps> = ({
       <CapsuleCollider args={[0.5, 0.4]} position={[0, 0.9, 0]} />
       <group ref={characterGroup} dispose={null}>
          <primitive object={scene} scale={1} />
+         {/* Name Tag */}
+         <Html position={[0, 2.2, 0]} center>
+            <div className="bg-black/50 backdrop-blur-sm border border-[#00ffcc]/50 px-2 py-0.5 rounded text-[10px] text-[#00ffcc] font-mono whitespace-nowrap">
+                {playerName}
+            </div>
+         </Html>
       </group>
     </RigidBody>
   );

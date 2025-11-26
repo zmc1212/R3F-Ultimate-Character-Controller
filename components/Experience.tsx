@@ -4,12 +4,15 @@ import { useFrame } from '@react-three/fiber';
 import { Character } from './Character';
 import { RemoteCharacter } from './RemoteCharacter';
 import { World } from './World';
-import { ControlMode } from '../types';
+import { ControlMode, PlayerData } from '../types';
 import * as THREE from 'three';
-import { io, Socket } from 'socket.io-client';
+import { Socket } from 'socket.io-client';
 
 interface ExperienceProps {
   controlMode: ControlMode;
+  socket: Socket | null;
+  players: Record<string, PlayerData>;
+  playerName: string;
 }
 
 const TargetMarker = ({ position }: { position: THREE.Vector3 | null }) => {
@@ -38,82 +41,23 @@ const TargetMarker = ({ position }: { position: THREE.Vector3 | null }) => {
             {/* Inner Pointer - Inverted Cone */}
             <mesh ref={meshRef} position={[0, 1.0, 0]} rotation={[Math.PI, 0, 0]}>
                 <coneGeometry args={[0.2, 0.5, 4]} />
-                <meshStandardMaterial color="#00ff88" emissive="#00ff88" emissiveIntensity={2} />
+                <meshStandardMaterial color="#00ffcc" emissive="#00ffcc" emissiveIntensity={2} />
             </mesh>
             
             {/* Ground Ring Ripple */}
             <mesh ref={ringRef} rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.02, 0]}>
                 <ringGeometry args={[0.3, 0.5, 32]} />
-                <meshBasicMaterial color="#00ff88" transparent opacity={0.5} />
+                <meshBasicMaterial color="#00ffcc" transparent opacity={0.5} />
             </mesh>
             
             {/* Glow Light */}
-            <pointLight intensity={2} distance={3} color="#00ff88" decay={2} position={[0, 0.5, 0]} />
+            <pointLight intensity={2} distance={3} color="#00ffcc" decay={2} position={[0, 0.5, 0]} />
         </group>
     );
 };
 
-interface PlayerData {
-  id?: string;
-  x: number;
-  y: number;
-  z: number;
-  rotation: number;
-  animation: string;
-}
-
-export const Experience: React.FC<ExperienceProps> = ({ controlMode }) => {
+export const Experience: React.FC<ExperienceProps> = ({ controlMode, socket, players, playerName }) => {
   const [targetLocation, setTargetLocation] = useState<THREE.Vector3 | null>(null);
-  
-  // Multiplayer State
-  const [socket, setSocket] = useState<Socket | null>(null);
-  const [players, setPlayers] = useState<Record<string, PlayerData>>({});
-
-  useEffect(() => {
-    // Attempt to connect to local server
-    const newSocket = io('http://localhost:3000', {
-        reconnectionAttempts: 5,
-        transports: ['websocket']
-    });
-
-    newSocket.on('connect', () => {
-        console.log('Connected to server with ID:', newSocket.id);
-    });
-
-    newSocket.on('init', (serverPlayers: Record<string, PlayerData>) => {
-        // Remove self from the list of remote players to render
-        const otherPlayers = { ...serverPlayers };
-        delete otherPlayers[newSocket.id as string];
-        setPlayers(otherPlayers);
-    });
-
-    newSocket.on('playerJoined', (player: PlayerData) => {
-        if (player.id !== newSocket.id) {
-            setPlayers((prev) => ({ ...prev, [player.id as string]: player }));
-        }
-    });
-
-    newSocket.on('playerMoved', (player: PlayerData) => {
-        setPlayers((prev) => ({
-            ...prev,
-            [player.id as string]: { ...prev[player.id as string], ...player }
-        }));
-    });
-
-    newSocket.on('playerLeft', (id: string) => {
-        setPlayers((prev) => {
-            const next = { ...prev };
-            delete next[id];
-            return next;
-        });
-    });
-
-    setSocket(newSocket);
-
-    return () => {
-        newSocket.disconnect();
-    };
-  }, []);
 
   const handleCharacterUpdate = (data: { x: number; y: number; z: number; rotation: number; animation: string }) => {
       if (socket && socket.connected) {
@@ -130,7 +74,9 @@ export const Experience: React.FC<ExperienceProps> = ({ controlMode }) => {
   return (
     <>
       {/* Lighting & Atmosphere */}
-      <color attach="background" args={['#202025']} />
+      <color attach="background" args={['#0a0a0f']} />
+      <fog attach="fog" args={['#0a0a0f', 5, 30]} />
+      
       <directionalLight
         position={[5, 10, 5]}
         intensity={1.5}
@@ -140,7 +86,7 @@ export const Experience: React.FC<ExperienceProps> = ({ controlMode }) => {
       >
         <orthographicCamera attach="shadow-camera" args={[-20, 20, 20, -20]} />
       </directionalLight>
-      <ambientLight intensity={0.5} />
+      <ambientLight intensity={0.2} color="#00ffcc" />
 
       {/* Physics World */}
       <Physics gravity={[0, -9.81, 0]}>
@@ -150,6 +96,7 @@ export const Experience: React.FC<ExperienceProps> = ({ controlMode }) => {
           controlMode={controlMode} 
           movementTarget={targetLocation}
           onUpdate={handleCharacterUpdate}
+          playerName={playerName}
         />
 
         {/* Remote Players */}
@@ -159,6 +106,7 @@ export const Experience: React.FC<ExperienceProps> = ({ controlMode }) => {
                 position={[p.x, p.y, p.z]} 
                 rotation={p.rotation} 
                 animation={p.animation} 
+                name={p.name}
             />
         ))}
 
