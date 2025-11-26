@@ -1,0 +1,5 @@
+{
+  "name": "R3F Ultimate Character Controller",
+  "description": "A silky smooth 3rd person character controller using React Three Fiber, Rapier Physics, and Tailwind CSS. Features walk, run, and jump states with seamless animation blending.",
+  "requestFramePermissions": []
+}
