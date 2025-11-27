@@ -198,12 +198,12 @@ export const Character: React.FC<CharacterProps> = ({
         rigidBody.current.setAngvel({ x: 0, y: 0, z: 0 }, true);
         rigidBody.current.setTranslation(sitPose.position, true);
         
-        // Smooth rotation
+        // Smooth rotation (Increased speed for snappier sit alignment)
         let angleDiff = sitPose.rotation - currentRotation.current;
         while (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
         while (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
         
-        currentRotation.current += angleDiff * 5 * delta;
+        currentRotation.current += angleDiff * 10 * delta; // Faster rotation correction (10)
         characterGroup.current.rotation.y = currentRotation.current;
         
         if (onUpdate && Date.now() - lastUpdateRef.current > 50) {
@@ -247,10 +247,18 @@ export const Character: React.FC<CharacterProps> = ({
         const hit = world.castRay(ray, 2.0, true);
         if (hit) groundDistance = hit.timeOfImpact;
     }
-    isOnFloor.current = groundDistance < 0.6;
+    
+    // CRITICAL FIX: If vertical velocity is positive (moving up), we are definitely NOT on floor.
+    // This overrides the raycast which might still hit ground during takeoff.
+    // if (currentYVelocity > 0.5) {
+    //     isOnFloor.current = false;
+    // } else {
+    //     isOnFloor.current = groundDistance < 0.6;
+    // }
 
     // 2. Landing Logic
     if (!wasOnFloor.current && isOnFloor.current) {
+        // Only trigger land if we were falling significantly
         if (currentYVelocity < -2.0) {
             isLanding.current = true;
             setAnimation('land');
@@ -387,10 +395,11 @@ export const Character: React.FC<CharacterProps> = ({
     }
 
     // --- JUMP LOGIC ---
-    // Added cooldown check (250ms) to prevent infinite jumping
-    if (jump && isOnFloor.current && !isLanding.current && Date.now() - jumpCooldown.current > 250) {
+    // Increased cooldown to 500ms to allow flight phase to start
+    if (jump && isOnFloor.current && !isLanding.current && Date.now() - jumpCooldown.current > 500) {
        currentYVelocity = jumpForce;
        isLanding.current = false;
+       isOnFloor.current = false; // Force airborne state immediately
        jumpCooldown.current = Date.now();
        
        // Determine Jump Type: RunJump or Standard Jump
@@ -464,6 +473,13 @@ export const Character: React.FC<CharacterProps> = ({
       position={[0, 5, 0]}
       friction={1}
       scale={0.5}
+      onCollisionEnter={({ other }) => {
+        // Hybrid approach: onCollisionEnter catches the exact frame of impact
+        // But we filter out "head bumps" (hitting ceiling) by checking velocity
+        if (rigidBody.current && rigidBody.current.linvel().y <= 0.1) {
+            isOnFloor.current = true;
+        }
+      }}
     >
       <CapsuleCollider args={[0.5, 0.4]} position={[0, 0.9, 0]} />
       <group ref={characterGroup} dispose={null}>

@@ -2,7 +2,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import * as THREE from 'three';
 import { Html, Text } from '@react-three/drei';
-import { Maximize2, Minimize2, MonitorUp, StopCircle, Cast, RefreshCw } from 'lucide-react';
+import { Maximize2, Minimize2, MonitorUp, StopCircle, Cast, RefreshCw, Loader2, SignalHigh } from 'lucide-react';
 import { Socket } from 'socket.io-client';
 import { PlayerData } from '../types';
 
@@ -21,6 +21,8 @@ const ICE_SERVERS = {
 export const ConferenceScreen: React.FC<ConferenceScreenProps> = ({ socket, players }) => {
   const [stream, setStream] = useState<MediaStream | null>(null);
   const [videoElement, setVideoElement] = useState<HTMLVideoElement | null>(null);
+  const [isVideoPlaying, setIsVideoPlaying] = useState(false);
+  
   const [isHovered, setIsHovered] = useState(false);
   const [isFullScreen, setIsFullScreen] = useState(false);
   
@@ -35,13 +37,25 @@ export const ConferenceScreen: React.FC<ConferenceScreenProps> = ({ socket, play
   const iceCandidateQueue = useRef<Record<string, RTCIceCandidate[]>>({});
   const retryTimeoutRef = useRef<any>(null);
 
-  // Initialize Video Element
+  // Initialize Video Element with Loading Listeners
   useEffect(() => {
     const video = document.createElement('video');
     video.muted = true; 
     video.playsInline = true;
     video.autoplay = true;
     video.crossOrigin = "Anonymous";
+    
+    // Listen for playback state to handle the "black screen" gap
+    video.onplaying = () => {
+        console.log("Video started playing");
+        setIsVideoPlaying(true);
+    };
+    
+    video.onwaiting = () => {
+        console.log("Video buffering");
+        setIsVideoPlaying(false);
+    };
+
     setVideoElement(video);
 
     return () => {
@@ -49,6 +63,8 @@ export const ConferenceScreen: React.FC<ConferenceScreenProps> = ({ socket, play
         const tracks = (video.srcObject as MediaStream).getTracks();
         tracks.forEach(track => track.stop());
       }
+      video.onplaying = null;
+      video.onwaiting = null;
     };
   }, []);
 
@@ -84,6 +100,7 @@ export const ConferenceScreen: React.FC<ConferenceScreenProps> = ({ socket, play
               if (videoElement.srcObject !== remoteStream) {
                   console.log("Setting new remote stream to video element");
                   setStream(remoteStream);
+                  setIsVideoPlaying(false); // Reset playing state on new stream
                   videoElement.srcObject = remoteStream;
                   videoElement.play().catch(e => {
                       if (e.name !== 'AbortError') console.error("Auto-play failed:", e);
@@ -162,6 +179,7 @@ export const ConferenceScreen: React.FC<ConferenceScreenProps> = ({ socket, play
           console.log("Share ended");
           setRemoteBroadcasterId(null);
           setStream(null);
+          setIsVideoPlaying(false);
           setConnectionStatus('idle');
           if (videoElement) {
               videoElement.pause();
@@ -239,7 +257,7 @@ export const ConferenceScreen: React.FC<ConferenceScreenProps> = ({ socket, play
           socket.off('share-ended', onShareEnded);
           socket.off('signal', onSignal);
       };
-  }, [socket, isBroadcaster]); // Removed isBroadcaster dep as logic handles itself, but kept for strictness if needed
+  }, [socket, isBroadcaster]);
 
 
   // --- User Actions ---
@@ -263,13 +281,15 @@ export const ConferenceScreen: React.FC<ConferenceScreenProps> = ({ socket, play
 
       // Local Display
       if (videoElement) {
+        setStream(mediaStream); // Set stream state immediately
+        setIsVideoPlaying(false); // Wait for playing event
+        
         videoElement.srcObject = mediaStream;
         videoElement.play().catch(e => {
             if (e.name !== 'AbortError') console.error("Local play failed:", e);
         });
       }
 
-      setStream(mediaStream);
       localStreamRef.current = mediaStream;
       setIsBroadcaster(true);
       
@@ -295,6 +315,7 @@ export const ConferenceScreen: React.FC<ConferenceScreenProps> = ({ socket, play
     localStreamRef.current = null;
     setIsBroadcaster(false);
     setIsFullScreen(false);
+    setIsVideoPlaying(false);
     setConnectionStatus('idle');
 
     if (videoElement) {
@@ -313,7 +334,7 @@ export const ConferenceScreen: React.FC<ConferenceScreenProps> = ({ socket, play
   };
 
   const toggleFullScreen = () => {
-    if (stream) {
+    if (stream && isVideoPlaying) {
       setIsFullScreen(!isFullScreen);
     }
   };
@@ -337,7 +358,7 @@ export const ConferenceScreen: React.FC<ConferenceScreenProps> = ({ socket, play
         position={[0, 0, 0.05]}
         onPointerOver={() => setIsHovered(true)}
         onPointerOut={() => setIsHovered(false)}
-        onClick={stream ? toggleFullScreen : (!remoteBroadcasterId ? startSharing : undefined)}
+        onClick={stream && isVideoPlaying ? toggleFullScreen : (!remoteBroadcasterId ? startSharing : undefined)}
       >
         <planeGeometry args={[8, 4.5]} />
         {stream && videoElement ? (
@@ -373,37 +394,42 @@ export const ConferenceScreen: React.FC<ConferenceScreenProps> = ({ socket, play
         </group>
       )}
 
-      {/* UI Overlay: VIEWING (Someone else is sharing) */}
+      {/* UI Overlay: CONNECTING / WAITING (Before stream object arrives) */}
       {!stream && remoteBroadcasterId && (
           <group position={[0, 0, 0.2]}>
-             <Text 
-              fontSize={0.3} 
-              color="#ffcc00" 
-              font={"/fonts/st.otf"}
-              position={[0, 0, 0]}
-              anchorX="center"
-              anchorY="middle"
-             >
-               RECEIVING TRANSMISSION...
-             </Text>
-             <Html center position={[0, -1, 0]} transform>
-                 <div className="flex flex-col items-center gap-2">
-                     <div className="flex items-center gap-2 text-[#ffcc00] animate-pulse">
-                        <Cast size={18} /> {connectionStatus === 'connecting' ? 'CONNECTING...' : 'WAITING FOR SIGNAL'}
+             <Html center position={[0, 0, 0]} transform>
+                 <div className="flex flex-col items-center gap-4 bg-black/80 p-4 border border-[#ffcc00]/50 rounded">
+                     <div className="flex items-center gap-2 text-[#ffcc00] animate-pulse font-mono font-bold tracking-widest">
+                        <SignalHigh size={24} /> 
+                        {connectionStatus === 'connecting' ? 'ESTABLISHING LINK...' : 'WAITING FOR SIGNAL'}
                      </div>
                      <button 
                         onClick={(e) => { e.stopPropagation(); forceReconnect(); }}
                         className="text-xs text-white/50 hover:text-white underline mt-2 flex items-center gap-1"
                      >
-                        <RefreshCw size={10} /> Retry Connection
+                        <RefreshCw size={10} /> FORCE RECONNECT
                      </button>
                  </div>
              </Html>
           </group>
       )}
 
-      {/* 3D Control Bar (Only for sharer or while viewing) */}
-      {stream && !isFullScreen && (
+      {/* UI Overlay: DECODING (Stream arrived but not playing yet - Fixes Black Screen) */}
+      {stream && !isVideoPlaying && (
+          <group position={[0, 0, 0.2]}>
+             <Html center position={[0, 0, 0]} transform>
+                 <div className="flex flex-col items-center gap-3 bg-black/80 p-6 border border-[#00ffcc]/50 shadow-[0_0_15px_rgba(0,255,204,0.3)]">
+                     <Loader2 size={32} className="text-[#00ffcc] animate-spin" />
+                     <div className="text-[#00ffcc] font-mono text-sm tracking-widest animate-pulse">
+                        DECODING DATA STREAM...
+                     </div>
+                 </div>
+             </Html>
+          </group>
+      )}
+
+      {/* 3D Control Bar (Only active when video is playing) */}
+      {stream && isVideoPlaying && !isFullScreen && (
         <Html position={[0, -2.5, 0]} center transform>
             <div className="flex gap-2 bg-black/80 backdrop-blur border border-white/10 p-2 rounded">
                 <button 

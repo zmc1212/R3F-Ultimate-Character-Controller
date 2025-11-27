@@ -24,21 +24,24 @@ export const Chair: React.FC<ChairProps> = ({ position, rotation = [0, 0, 0], on
         const worldPos = new THREE.Vector3();
         groupRef.current.getWorldPosition(worldPos);
 
-        // Get World Rotation
+        // Get World Rotation Quaternion
         const worldQuat = new THREE.Quaternion();
         groupRef.current.getWorldQuaternion(worldQuat);
-        const euler = new THREE.Euler().setFromQuaternion(worldQuat);
-        const rotY = euler.y;
+
+        // Calculate Forward Direction based on World Quaternion
+        // Assuming the chair model's local +Z is "forward" (legs are at +/- X, backrest at -Z)
+        const forwardDir = new THREE.Vector3(0, 0, 1).applyQuaternion(worldQuat);
         
-        // Calculate Entry Point (1.0 unit in front of the chair relative to world rotation)
-        // Increased to 1.0 to ensure the character stops completely clear of the chair collider
-        const forwardDir = new THREE.Vector3(0, 0, 1).applyAxisAngle(new THREE.Vector3(0, 1, 0), rotY);
+        // Calculate Rotation Angle from the forward vector
+        // Math.atan2(x, z) gives the angle relative to the Z axis in 3D space for Y-rotation
+        const rotY = Math.atan2(forwardDir.x, forwardDir.z);
+        
+        // Calculate Entry Point (1.0 unit in front of the chair)
         const entryPos = worldPos.clone().add(forwardDir.clone().multiplyScalar(1.0));
         entryPos.y += 0.1;
         
         // Calculate Sit Position (Floor level)
-        // Set to slightly above 0 (0.05) to align feet with ground, allowing the animation to place hips on the seat.
-        // Previous value of 0.65 caused floating.
+        // Set to slightly above 0 (0.05) to align feet with ground
         const sitPos = worldPos.clone().add(new THREE.Vector3(0, 0.05, 0));
 
         onInteract(entryPos, sitPos, rotY);

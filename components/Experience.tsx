@@ -10,6 +10,7 @@ import { Chair } from './Furniture';
 import { ControlMode, PlayerData } from '../types';
 import * as THREE from 'three';
 import { Socket } from 'socket.io-client';
+import { Environment, useTexture } from '@react-three/drei';
 
 interface ExperienceProps {
   controlMode: ControlMode;
@@ -59,6 +60,11 @@ export const Experience: React.FC<ExperienceProps> = ({ controlMode, socket, pla
   
   // Track pending interaction (waiting for character to walk to chair)
   const pendingInteraction = useRef<{ type: 'sit', position: THREE.Vector3, rotation: number } | null>(null);
+
+  // Load Environment Map
+  const envMap = useTexture('/images/env.png');
+  envMap.mapping = THREE.EquirectangularReflectionMapping;
+  envMap.colorSpace = THREE.SRGBColorSpace;
 
   const handleCharacterUpdate = (data: { x: number; y: number; z: number; rotation: number; animation: string }) => {
       if (socket && socket.connected) {
@@ -114,8 +120,18 @@ export const Experience: React.FC<ExperienceProps> = ({ controlMode, socket, pla
 
   return (
     <>
-      <color attach="background" args={['#0a0a0f']} />
-      <fog attach="fog" args={['#0a0a0f', 5, 40]} />
+      {/* 
+        ENVIRONMENT & BACKGROUND
+        Using a manual sphere for the visual background to allow height adjustment (position.y).
+        Using Environment component strictly for lighting (IBL).
+      */}
+      <Environment map={envMap} />
+      
+      {/* Visual Background Sphere - Raised by 10 units to adjust horizon */}
+      <mesh position={[0, 10, 0]} scale={100}>
+        <sphereGeometry args={[1, 64, 64]} />
+        <meshBasicMaterial map={envMap} side={THREE.BackSide} />
+      </mesh>
       
       <directionalLight position={[5, 10, 5]} intensity={1.5} castShadow shadow-mapSize={[2048, 2048]} shadow-bias={-0.0001}>
         <orthographicCamera attach="shadow-camera" args={[-30, 30, 30, -30]} />
@@ -149,11 +165,14 @@ export const Experience: React.FC<ExperienceProps> = ({ controlMode, socket, pla
         
         <ConferenceRoom position={[20, 0, 0]} socket={socket} players={players} />
 
-        {/* Interactive Chairs */}
-        <group position={[10, 0, 0]}>
-            <Chair position={[0, 0, 0]} rotation={[0, 0, 0]} onInteract={handleChairInteract} />
-            <Chair position={[2, 0, 0]} rotation={[0, -Math.PI/4, 0]} onInteract={handleChairInteract} />
-            <Chair position={[-2, 0, 0]} rotation={[0, Math.PI/4, 0]} onInteract={handleChairInteract} />
+        {/* Interactive Chairs - Positioned in front of Conference Room */}
+        <group position={[20, 0, 7]}>
+            {/* Center Chair */}
+            <Chair position={[0, 0, 0]} rotation={[0, Math.PI, 0]} onInteract={handleChairInteract} />
+            {/* Right Side */}
+            <Chair position={[3, 0, 1]} rotation={[0, Math.PI + 0.4, 0]} onInteract={handleChairInteract} />
+            {/* Left Side */}
+            <Chair position={[-3, 0, 1]} rotation={[0, Math.PI - 0.4, 0]} onInteract={handleChairInteract} />
         </group>
 
       </Physics>
