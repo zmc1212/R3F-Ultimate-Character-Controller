@@ -1,23 +1,34 @@
+
 import React, { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { useFrame } from '@react-three/fiber';
-import { useKeyboardControls, useAnimations, useGLTF } from '@react-three/drei';
+import { useKeyboardControls, useAnimations, useGLTF, Html } from '@react-three/drei';
 import { RigidBody, RapierRigidBody, CapsuleCollider, useRapier } from '@react-three/rapier';
 import { useControls } from 'leva';
 import { Controls, ControlMode } from '../types';
 
-const MODEL_URL = "https://raw.githubusercontent.com/mrdoob/three.js/master/examples/models/gltf/Xbot.glb";
+const MODEL_URL = "/models/fmale.glb";
 
 interface CharacterProps {
   controlMode?: ControlMode;
   movementTarget?: THREE.Vector3 | null;
   onUpdate?: (data: { x: number; y: number; z: number; rotation: number; animation: string }) => void;
+  playerName?: string;
+  onTargetReached?: () => void;
+  isSitting?: boolean;
+  sitPose?: { position: THREE.Vector3; rotation: number } | null;
+  onStopSitting?: () => void;
 }
 
 export const Character: React.FC<CharacterProps> = ({ 
   controlMode = 'direct', 
   movementTarget,
-  onUpdate
+  onUpdate,
+  playerName = "Player",
+  onTargetReached,
+  isSitting = false,
+  sitPose = null,
+  onStopSitting
 }) => {
   // Leva Controls
   const { 
@@ -44,19 +55,18 @@ export const Character: React.FC<CharacterProps> = ({
   const isOnFloor = useRef(true);
   const wasOnFloor = useRef(true);
   const isLanding = useRef(false);
+  const jumpType = useRef<'Jump' | 'RunJump'>('Jump');
+  const jumpCooldown = useRef(0);
   
   // Model loading
   const { scene, animations } = useGLTF(MODEL_URL);
-  // FIX: Use scene directly instead of cloning. 
-  // scene.clone() breaks SkinnedMeshes without SkeletonUtils, causing the mesh to disappear on animation.
-  // Since we only have one character, using the original scene is safe and performant.
   const { actions } = useAnimations(animations, characterGroup);
 
   // Input
   const [, getKeys] = useKeyboardControls<Controls>();
   
   // State
-  const [animation, setAnimation] = useState<string>('idle');
+  const [animation, setAnimation] = useState<string>('Idle');
 
   // Logic for smooth rotation
   const currentRotation = useRef(0);
@@ -111,50 +121,118 @@ export const Character: React.FC<CharacterProps> = ({
 
   // Update nav target when prop changes
   useEffect(() => {
-    if (controlMode === 'pointToClick' && movementTarget) {
+    if (movementTarget) {
       currentNavTarget.current = movementTarget.clone();
       stuckTime.current = 0; // Reset stuck timer on new target
     }
-  }, [movementTarget, controlMode]);
-
-  // Reset target when switching to direct
-  useEffect(() => {
-    if (controlMode === 'direct') {
-      currentNavTarget.current = null;
-    }
-  }, [controlMode]);
+  }, [movementTarget]);
 
   // Animation Management
   useEffect(() => {
-    const animName = 
-      animation === 'idle' ? 'idle' :
-      animation === 'walk' ? 'walk' :
-      animation === 'run' ? 'run' : 
-      animation === 'jump' ? 'jump' : 
-      animation === 'land' ? 'land' : 'idle';
+    // Determine the animation name
+    let animName = 'Idle';
+    
+    if (isSitting) {
+        if (actions['Sitting']) animName = 'Sitting';
+        else if (actions['Sit']) animName = 'Sit';
+        else animName = 'Idle';
+    } else {
+        animName = 
+          animation === 'Idle' ? 'Idle' :
+          animation === 'Walking' ? 'Walking' :
+          animation === 'Run' ? 'Run' : 
+          animation === 'Jump' ? 'Jump' : 
+          animation === 'RunJump' ? 'RunJump' :
+          animation === 'land' ? 'land' : 'Idle';
+    }
 
-    // Fallback to idle if specific animation missing (e.g. land/jump on some models)
-    const action = actions[animName] || actions['idle'];
+    const action = actions[animName] || actions['Idle'];
     
     if (action) {
-      if (animName === 'jump') {
+      if (animName === 'Jump') {
           action.reset().fadeIn(0.1).setLoop(THREE.LoopOnce, 1).play();
           action.clampWhenFinished = true;
+      } else if (animName === 'RunJump') {
+          // If RunJump exists, play it. Otherwise fallback to Jump if logic below fails.
+          const runJumpAction = actions['RunJump'] || actions['Jump'];
+          if (runJumpAction) {
+             runJumpAction.reset().fadeIn(0.1).setLoop(THREE.LoopOnce, 1).play();
+             runJumpAction.clampWhenFinished = true;
+             // Slow down the RunJump animation to make it last longer (0.6x speed)
+             runJumpAction.timeScale = 0.6;
+          }
       } else if (animName === 'land') {
           action.reset().fadeIn(0.05).setLoop(THREE.LoopOnce, 1).play();
           action.clampWhenFinished = true;
       } else {
           action.reset().fadeIn(0.2).play();
+          action.timeScale = 1; // Reset timeScale for normal loops
       }
     }
     
     return () => {
+      // Clean up previous action
       if (action) action.fadeOut(0.2);
+      const fallback = actions['RunJump'] || actions['Jump'];
+      if (animName === 'RunJump' && fallback) fallback.fadeOut(0.2);
     };
-  }, [animation, actions]);
+  }, [animation, actions, isSitting]);
 
   useFrame((state, delta) => {
     if (!rigidBody.current || !characterGroup.current) return;
+
+    // Get input keys early
+    const keys = getKeys();
+    const { forward, backward, left, right, jump, run } = keys;
+
+    // --- SITTING STATE ---
+    if (isSitting && sitPose) {
+        // Check if player wants to stand up
+        if (onStopSitting && (forward || backward || left || right || jump)) {
+            onStopSitting();
+            return;
+        }
+
+        // Lock physics
+        rigidBody.current.setLinvel({ x: 0, y: 0, z: 0 }, true);
+        rigidBody.current.setAngvel({ x: 0, y: 0, z: 0 }, true);
+        rigidBody.current.setTranslation(sitPose.position, true);
+        
+        // Smooth rotation
+        let angleDiff = sitPose.rotation - currentRotation.current;
+        while (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
+        while (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
+        
+        currentRotation.current += angleDiff * 5 * delta;
+        characterGroup.current.rotation.y = currentRotation.current;
+        
+        if (onUpdate && Date.now() - lastUpdateRef.current > 50) {
+            onUpdate({
+                x: sitPose.position.x,
+                y: sitPose.position.y,
+                z: sitPose.position.z,
+                rotation: currentRotation.current,
+                animation: actions['Sitting'] ? 'Sitting' : (actions['Sit'] ? 'Sit' : 'Idle')
+            });
+            lastUpdateRef.current = Date.now();
+        }
+
+        // Camera Logic during Sitting
+        const radius = 6;
+        const phi = cameraPolar.current;
+        const theta = cameraOrbit.current;
+        const offsetX = radius * Math.sin(phi) * Math.sin(theta);
+        const offsetY = radius * Math.cos(phi);
+        const offsetZ = radius * Math.sin(phi) * Math.cos(theta);
+        const targetCameraPos = new THREE.Vector3(
+            sitPose.position.x + offsetX,
+            sitPose.position.y + offsetY + 1.5,
+            sitPose.position.z + offsetZ
+        );
+        state.camera.position.lerp(targetCameraPos, 0.1);
+        state.camera.lookAt(new THREE.Vector3(sitPose.position.x, sitPose.position.y + 1.5, sitPose.position.z));
+        return; 
+    }
 
     const linvel = rigidBody.current.linvel();
     let currentYVelocity = linvel.y;
@@ -163,58 +241,56 @@ export const Character: React.FC<CharacterProps> = ({
     // 1. Ground Check
     const rayOrigin = { x: currentPos.x, y: currentPos.y + 0.5, z: currentPos.z };
     const rayDir = { x: 0, y: -1, z: 0 };
-    
     let groundDistance = 100;
     if (rapier && world) {
         const ray = new rapier.Ray(rayOrigin, rayDir);
         const hit = world.castRay(ray, 2.0, true);
-        if (hit) {
-            groundDistance = hit.timeOfImpact;
-        }
+        if (hit) groundDistance = hit.timeOfImpact;
     }
     isOnFloor.current = groundDistance < 0.6;
 
     // 2. Landing Logic
     if (!wasOnFloor.current && isOnFloor.current) {
-        // Character just hit the ground
-        // Only trigger land animation if falling speed was significant
         if (currentYVelocity < -2.0) {
             isLanding.current = true;
             setAnimation('land');
-            
-            // Lock movement for a short duration to emphasize impact
-            setTimeout(() => {
-                isLanding.current = false;
-            }, 200);
+            setTimeout(() => { isLanding.current = false; }, 200);
         }
     }
     wasOnFloor.current = isOnFloor.current;
 
-    // 3. Determine Movement Input
-    const keys = getKeys();
-    const { forward, backward, left, right, jump, run } = keys;
-
+    // 3. Movement Logic
     let moveX = 0;
     let moveZ = 0;
     let desiredSpeed = 0;
-    let newAnimation = animation; // Default to keeping current
+    let newAnimation = animation;
 
-    // Only process movement if we aren't currently landing
-    if (!isLanding.current) {
-        // --- DIRECT CONTROL MODE ---
-        if (controlMode === 'direct') {
-          desiredSpeed = run ? runSpeed : walkSpeed;
+    // Has Manual Input?
+    const isManualMove = forward || backward || left || right;
 
-          if (forward || backward || left || right) {
-            newAnimation = run ? 'run' : 'walk';
+    // If Landing, disable movement briefly
+    if (isLanding.current) {
+        moveX = 0; 
+        moveZ = 0;
+        newAnimation = 'land';
+    } 
+    else {
+        // --- MOVEMENT CALCULATION ---
+        if (isManualMove) {
+            // Cancel auto-nav target
+            if (currentNavTarget.current) {
+                currentNavTarget.current = null;
+            }
 
-            // Camera Direction
+            desiredSpeed = run ? runSpeed : walkSpeed;
+            // Only set ground animations if ON FLOOR
+            if (isOnFloor.current) {
+                newAnimation = run ? 'Run' : 'Walking';
+            }
+
             const camForward = new THREE.Vector3(0, 0, -1);
             const camRight = new THREE.Vector3(1, 0, 0);
-            
-            // We calculate direction based on the orbit angle
             const orbitQuat = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), cameraOrbit.current);
-            
             camForward.applyQuaternion(orbitQuat);
             camRight.applyQuaternion(orbitQuat);
 
@@ -225,55 +301,44 @@ export const Character: React.FC<CharacterProps> = ({
             if (left) moveDir.sub(camRight);
             
             moveDir.normalize();
-
             moveX = moveDir.x * desiredSpeed;
             moveZ = moveDir.z * desiredSpeed;
-            
             targetRotation.current = Math.atan2(moveX, moveZ);
-          } else {
-            desiredSpeed = 0;
-            newAnimation = 'idle';
-          }
-        } 
-        // --- POINT TO CLICK MODE ---
-        else if (controlMode === 'pointToClick' && currentNavTarget.current) {
+        }
+        else if (currentNavTarget.current) {
+            // Auto Nav Logic
             const target = currentNavTarget.current;
             let dx = target.x - currentPos.x;
             let dz = target.z - currentPos.z;
             const distance = Math.sqrt(dx * dx + dz * dz);
             
-            // Stuck detection
             const distMoved = new THREE.Vector3(currentPos.x, 0, currentPos.z).distanceTo(
                 new THREE.Vector3(lastPosition.current.x, 0, lastPosition.current.z)
             );
             lastPosition.current.copy(currentPos);
             
-            if (distMoved < 0.01 * runSpeed) { // If moving very slowly
+            if (distMoved < 0.01 * runSpeed) {
                 stuckTime.current += delta;
             } else {
                 stuckTime.current = 0;
             }
 
-            // Increased stuck tolerance to 2 seconds to allow for navigation
-            if (distance > 0.5 && stuckTime.current < 2.0) {
-                newAnimation = 'run'; // Always run to target
+            if (distance > 0.2 && stuckTime.current < 2.0) {
+                if (isOnFloor.current) newAnimation = 'Run';
                 desiredSpeed = runSpeed;
-                
-                // Basic direction to target
                 const rawDir = new THREE.Vector3(dx, 0, dz).normalize();
                 let finalDir = rawDir.clone();
 
-                // OBSTACLE AVOIDANCE STEERING
-                if (rapier && world) {
-                    const whiskerOrigin = { x: currentPos.x, y: currentPos.y + 0.5, z: currentPos.z };
-                    
-                    // Whiskers: Center, Left, Right
+                if (rapier && world && distance > 1.5) {
+                   // ... Obstacle avoidance code ...
+                    const whiskerOrigin = { x: currentPos.x, y: currentPos.y + 0.6, z: currentPos.z };
                     const whiskers = [
-                        { angle: 0, weight: 1.0, length: 2.0 },        // Front
-                        { angle: -Math.PI / 3, weight: 0.8, length: 1.5 }, // Right
-                        { angle: Math.PI / 3, weight: 0.8, length: 1.5 },  // Left
+                        { angle: 0, weight: 1.0, length: 2.0 },
+                        { angle: -Math.PI / 4, weight: 1.5, length: 1.5 },
+                        { angle: Math.PI / 4, weight: 1.5, length: 1.5 },
+                        { angle: -Math.PI / 2.5, weight: 1.5, length: 1.2 },
+                        { angle: Math.PI / 2.5, weight: 1.5, length: 1.2 },
                     ];
-
                     let avoidanceVector = new THREE.Vector3();
                     let hasCollision = false;
 
@@ -284,12 +349,10 @@ export const Character: React.FC<CharacterProps> = ({
 
                         if (hit) {
                             const toi = hit.timeOfImpact;
-                            // Filter out self-collision (radius ~0.5)
                             if (toi > 0.55) {
                                 hasCollision = true;
-                                // Calculate repulsion: stronger as we get closer
                                 const repulsionStrength = (whisker.length - toi) / whisker.length;
-                                const repulsion = scanDir.clone().negate().multiplyScalar(repulsionStrength * whisker.weight * 3);
+                                const repulsion = scanDir.clone().negate().multiplyScalar(repulsionStrength * whisker.weight * 5);
                                 avoidanceVector.add(repulsion);
                             }
                         }
@@ -303,82 +366,84 @@ export const Character: React.FC<CharacterProps> = ({
 
                 moveX = finalDir.x * desiredSpeed;
                 moveZ = finalDir.z * desiredSpeed;
-
                 targetRotation.current = Math.atan2(moveX, moveZ);
             } else {
-                // Arrived or stuck
+                if (currentNavTarget.current && onTargetReached) {
+                    if (distance < 1.5 || stuckTime.current > 2.0) {
+                         onTargetReached();
+                    }
+                }
                 currentNavTarget.current = null;
                 desiredSpeed = 0;
                 stuckTime.current = 0;
-                newAnimation = 'idle';
+                if (isOnFloor.current) newAnimation = 'Idle';
             }
+        } 
+        else {
+            // Idle
+            desiredSpeed = 0;
+            if (isOnFloor.current) newAnimation = 'Idle';
         }
-    } else {
-        // Landing mode - freeze horizontal movement
-        moveX = 0;
-        moveZ = 0;
-        newAnimation = 'land';
     }
 
-    // 4. Jump
-    // Can only jump if on floor and not currently in the middle of a heavy landing
-    if (jump && isOnFloor.current && !isLanding.current) {
+    // --- JUMP LOGIC ---
+    // Added cooldown check (250ms) to prevent infinite jumping
+    if (jump && isOnFloor.current && !isLanding.current && Date.now() - jumpCooldown.current > 250) {
        currentYVelocity = jumpForce;
-       newAnimation = 'jump';
-       isLanding.current = false; // Cancel landing state if we jump immediately (bunny hop)
+       isLanding.current = false;
+       jumpCooldown.current = Date.now();
+       
+       // Determine Jump Type: RunJump or Standard Jump
+       // A RunJump happens if we are running and moving
+       const isMoving = Math.abs(moveX) > 0.1 || Math.abs(moveZ) > 0.1;
+       if (run && isMoving) {
+           jumpType.current = 'RunJump';
+       } else {
+           jumpType.current = 'Jump';
+       }
+       
+       newAnimation = jumpType.current;
     }
 
-    // 5. Override Animation for Air State
+    // --- AIR LOGIC ---
+    // If not on floor, strictly enforce airborne animation
     if (!isOnFloor.current) {
-        newAnimation = 'jump';
+        newAnimation = jumpType.current;
     }
 
-    // 6. Update Animation State
     if (animation !== newAnimation) {
         setAnimation(newAnimation);
     }
 
-    // 7. Apply Physics
-    rigidBody.current.setLinvel({ 
-      x: moveX, 
-      y: currentYVelocity, 
-      z: moveZ 
-    }, true);
+    // Apply Physics
+    rigidBody.current.setLinvel({ x: moveX, y: currentYVelocity, z: moveZ }, true);
 
-    // 8. Smooth Rotation
-    if (desiredSpeed > 0 || (controlMode === 'pointToClick' && currentNavTarget.current)) {
+    // Apply Rotation
+    if (desiredSpeed > 0 || (currentNavTarget.current)) {
        let angleDiff = targetRotation.current - currentRotation.current;
        while (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
        while (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
-       
        currentRotation.current += angleDiff * rotationSpeed * delta;
        characterGroup.current.rotation.y = currentRotation.current;
     }
 
-    // 9. Camera Follow with Spherical Orbit
+    // Camera Update
     const radius = 6;
     const phi = cameraPolar.current;
     const theta = cameraOrbit.current;
-
     const offsetX = radius * Math.sin(phi) * Math.sin(theta);
     const offsetY = radius * Math.cos(phi);
     const offsetZ = radius * Math.sin(phi) * Math.cos(theta);
 
     const targetCameraPos = new THREE.Vector3(
         currentPos.x + offsetX,
-        currentPos.y + offsetY + 1.5, // Lift pivot point slightly
+        currentPos.y + offsetY + 1.5,
         currentPos.z + offsetZ
     );
-
-    // Smoothly interpolate camera position
     state.camera.position.lerp(targetCameraPos, 0.1);
-    
-    // Look at character
     const lookAtTarget = new THREE.Vector3(currentPos.x, currentPos.y + 1.5, currentPos.z);
     state.camera.lookAt(lookAtTarget);
 
-    // 10. NETWORK SYNC
-    // Emit updates ~20 times per second to save bandwidth
     if (onUpdate && Date.now() - lastUpdateRef.current > 50) {
         onUpdate({
             x: currentPos.x,
@@ -398,14 +463,19 @@ export const Character: React.FC<CharacterProps> = ({
       enabledRotations={[false, false, false]} 
       position={[0, 5, 0]}
       friction={1}
+      scale={0.5}
     >
       <CapsuleCollider args={[0.5, 0.4]} position={[0, 0.9, 0]} />
       <group ref={characterGroup} dispose={null}>
          <primitive object={scene} scale={1} />
+         <Html position={[0, 2.2, 0]} center>
+            <div className="bg-black/50 backdrop-blur-sm border border-[#00ffcc]/50 px-2 py-0.5 rounded text-[10px] text-[#00ffcc] font-mono whitespace-nowrap">
+                {playerName}
+            </div>
+         </Html>
       </group>
     </RigidBody>
   );
 };
 
-// Preload to prevent hydration glitches
 useGLTF.preload(MODEL_URL);

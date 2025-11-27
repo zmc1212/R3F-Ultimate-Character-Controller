@@ -6,22 +6,29 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "server": "nodemon server.js",
+    "type-check": "tsc --noEmit --skipLibCheck"
   },
   "dependencies": {
-    "react": "^18.2.0",
-    "@react-three/fiber": "^8.15.16",
     "@react-three/drei": "^9.99.0",
-    "lucide-react": "^0.554.0",
-    "three": "0.160.0",
-    "three-stdlib": "^2.29.0",
+    "@react-three/fiber": "^8.15.16",
     "@react-three/rapier": "^1.3.0",
     "leva": "^0.10.1",
-    "react-dom": "^18.2.0"
+    "lucide-react": "^0.554.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "socket.io": "^4.8.1",
+    "socket.io-client": "^4.8.1",
+    "three": "0.160.0",
+    "three-stdlib": "^2.36.1"
   },
   "devDependencies": {
     "@types/node": "^22.14.0",
+    "@types/react": "18.2.66",
+    "@types/react-dom": "18.2.22",
     "@vitejs/plugin-react": "^5.0.0",
+    "nodemon": "^3.1.11",
     "typescript": "~5.8.2",
     "vite": "^6.2.0"
   }
