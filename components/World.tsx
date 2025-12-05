@@ -36,11 +36,11 @@ export const World: React.FC<WorldProps> = ({ onFloorClick }) => {
         </Box>
       </RigidBody>
 
-      <RigidBody type="fixed" position={[-5, 0.5, 2]}>
+      {/* <RigidBody type="fixed" position={[-5, 0.5, 2]}>
          <Box args={[4, 1, 4]} castShadow receiveShadow>
           <meshStandardMaterial color="#4ecdc4" />
         </Box>
-      </RigidBody>
+      </RigidBody> */}
       
       <RigidBody type="fixed" position={[0, 1.5, -8]} rotation={[0, Math.PI / 4, 0]}>
          <Box args={[10, 3, 1]} castShadow receiveShadow>

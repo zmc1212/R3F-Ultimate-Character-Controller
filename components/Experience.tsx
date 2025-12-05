@@ -8,12 +8,14 @@ import { World } from './World';
 import { ConferenceRoom } from './ConferenceRoom';
 import { Chair } from './Furniture';
 import { JumpPad, DiscoFloor } from './InteractiveObjects';
-import { Teleporter, SpeedPad } from './SciFiProps';
-
+// Updated imports
+import { Teleporter } from './Teleporter';
+import { SpeedPad } from './SpeedPad';
 import { ControlMode, PlayerData } from '../types';
 import * as THREE from 'three';
 import { Socket } from 'socket.io-client';
 import { Environment, useTexture, Box } from '@react-three/drei';
+
 interface ExperienceProps {
   controlMode: ControlMode;
   socket: Socket | null;
@@ -168,21 +170,21 @@ export const Experience: React.FC<ExperienceProps> = ({ controlMode, socket, pla
         <ConferenceRoom position={[20, 0, 0]} socket={socket} players={players} />
 
         {/* Interactive Chairs - Positioned in front of Conference Room */}
-        <group position={[20, 0.2, 3.5]}>
-            <Chair position={[0, 0, 1]} rotation={[0, Math.PI, 0]} onInteract={handleChairInteract} />
+        <group position={[20, 0, 4]}>
+            <Chair position={[0, 0, 0]} rotation={[0, Math.PI, 0]} onInteract={handleChairInteract} />
             <Chair position={[3, 0, 1]} rotation={[0, Math.PI + 0.4, 0]} onInteract={handleChairInteract} />
             <Chair position={[-3, 0, 1]} rotation={[0, Math.PI - 0.4, 0]} onInteract={handleChairInteract} />
         </group>
 
-        {/* --- NEW INTERACTIVE OBJECTS --- */}
+        {/* --- INTERACTIVE OBJECTS --- */}
         
-        {/* Jump Pad to the right of the conference room */}
-        <JumpPad position={[30, 0, 2]} />
+        {/* Jump Pad */}
+        <JumpPad position={[28, 0, 2]} />
         
-        {/* Disco Floor at the entrance of the conference area */}
-        <DiscoFloor position={[20, 0.01, 12]} rows={3} cols={6} />
+        {/* Disco Floor */}
+        <DiscoFloor position={[20, 0.05, 12]} rows={3} cols={6} />
         
-        {/* Floating Observation Platform (Accessible via Jump Pad) */}
+        {/* Floating Observation Platform */}
         <group position={[20, 8, 0]}>
              <Box args={[14, 0.5, 6]} receiveShadow>
                  <meshStandardMaterial color="#222" metalness={0.8} roughness={0.2} transparent opacity={0.9} />
@@ -196,7 +198,6 @@ export const Experience: React.FC<ExperienceProps> = ({ controlMode, socket, pla
              </Box>
              {/* Physics Body for Platform */}
              <group visible={false}>
-                 {/* Manually aligning rigid body to visual mesh */}
                  <RigidBody type="fixed" colliders="cuboid">
                      <mesh position={[0, 0, 0]}>
                         <boxGeometry args={[14, 0.5, 6]} />
@@ -204,7 +205,8 @@ export const Experience: React.FC<ExperienceProps> = ({ controlMode, socket, pla
                  </RigidBody>
              </group>
         </group>
-          {/* --- SCI-FI PROPS --- */}
+
+        {/* --- SCI-FI PROPS --- */}
         
         {/* Teleporter Pair: Ground <-> Platform */}
         {/* Ground Portal */}
@@ -223,12 +225,25 @@ export const Experience: React.FC<ExperienceProps> = ({ controlMode, socket, pla
             color="#ff00ff" 
         />
 
-        {/* Speed Pads Lane */}
-        <group position={[-10, 0, 0]}>
-            <SpeedPad position={[0, 0, 0]} direction={[0, 0, -1]} boostStrength={30} />
-            <SpeedPad position={[0, 0, -6]} direction={[0, 0, -1]} boostStrength={30} />
-            <SpeedPad position={[0, 0, -12]} direction={[0, 0, -1]} boostStrength={30} />
+        {/* Speed Pads Race Track (Loop) */}
+        <group>
+            {/* Straight Leg 1: Moving "North" (-Z) */}
+            <SpeedPad position={[-15, 0, 10]} direction={[0, 0, -1]} boostStrength={50} />
+            <SpeedPad position={[-15, 0, 0]} direction={[0, 0, -1]} boostStrength={50} />
+            
+            {/* Corner 1: Turn Right (+X) */}
+            <SpeedPad position={[-15, 0, -12]} direction={[1, 0, 0]} boostStrength={50} />
+            
+            {/* Corner 2: Turn "South" (+Z) */}
+            <SpeedPad position={[-5, 0, -12]} direction={[0, 0, 1]} boostStrength={50} />
+            
+            {/* Straight Leg 2: Moving "South" (+Z) */}
+            <SpeedPad position={[-5, 0, 0]} direction={[0, 0, 1]} boostStrength={50} />
+            
+            {/* Corner 3: Turn Left (-X) to close loop */}
+            <SpeedPad position={[-5, 0, 10]} direction={[-1, 0, 0]} boostStrength={50} />
         </group>
+
       </Physics>
 
       <TargetMarker position={targetLocation} />

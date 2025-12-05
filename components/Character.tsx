@@ -209,9 +209,7 @@ export const Character: React.FC<CharacterProps> = ({
     }
 
     // Determine Ground Status
-    // If moving UP fast, we are jumping -> not on floor.
-    // Otherwise, check ray distance. Offset 0.5 means < 0.55 is touching.
-    if (currentVelY > 0.5) {
+    if (currentVelY > 1.0) { // Increased threshold to avoid false air-state on bumps
       isOnFloor.current = false;
     } else {
       isOnFloor.current = groundDistance < 0.55;
@@ -219,14 +217,10 @@ export const Character: React.FC<CharacterProps> = ({
 
     // Detect Landing Impact
     if (!wasOnFloor.current && isOnFloor.current) {
-      // Only land if falling fast enough (prevents walking jitter)
-      if (currentVelY < 0.5) {
-        console.log('landing', currentVelY);
-
+      if (currentVelY < -1.0) { // Only land on hard impacts
         isLanding.current = true;
          const landAction = actions['Landing'];
         const duration = landAction ? landAction.getClip().duration : 0.8;
-        console.log('duration',duration)
         setTimeout(() => { isLanding.current = false; }, duration * 1000);
       }
     }
@@ -278,7 +272,7 @@ export const Character: React.FC<CharacterProps> = ({
 
         // Simple Obstacle Avoidance (Only when far from target)
         if (dist > 1.5) {
-          // ... (Simpler whiskers could go here, omitting for brevity/stability)
+           // Basic whisker logic can go here
         }
 
         moveX = dir.x * desiredSpeed;
@@ -313,18 +307,14 @@ export const Character: React.FC<CharacterProps> = ({
     }
     // Priority 3: Airborne State
     else if (!isOnFloor.current) {
-      // If falling down significantly, switch to Falling
-      console.log('currentVelY', currentVelY)
-      if (currentVelY < 5) {
+      if (currentVelY < -0.1) {
         newState = 'Falling';
       } else {
-        // Otherwise keep Jump/RunJump pose (clamped)
         newState = jumpType.current;
       }
     }
     // Priority 4: Ground Movement
     else {
-      // On Floor
       if (Math.abs(moveX) > 0.1 || Math.abs(moveZ) > 0.1) {
         newState = (Math.abs(desiredSpeed) > walkSpeed + 1) ? 'Running' : 'Walking';
       } else {
@@ -333,15 +323,35 @@ export const Character: React.FC<CharacterProps> = ({
     }
 
     if (animation !== newState) {
-      console.log('newState',newState);
        setAnimation(newState)
     };
 
 
     // --- 4. APPLY PHYSICS & TRANSFORMS ---
 
+    // MOMENTUM PRESERVATION LOGIC FOR SPEED PADS
+    // Calculate current horizontal speed from physics engine
+    const currentHorizontalSpeed = Math.sqrt(linvel.x * linvel.x + linvel.z * linvel.z);
+    
+    // Calculate desired input speed
+    const inputSpeed = Math.sqrt(moveX * moveX + moveZ * moveZ);
+    
+    // Final velocity to apply
+    let finalX = moveX;
+    let finalZ = moveZ;
+
+    // If current physical speed is significantly higher than input speed (e.g., boosted by SpeedPad),
+    // don't clamp it instantly. Let it decay naturally using linear interpolation (Drag).
+    // Threshold is set slightly above max run speed to avoid interfering with normal input.
+    if (currentHorizontalSpeed > runSpeed + 2.0) {
+        // Decay factor (0.05 means very slippery/low friction, 0.2 means quick stop)
+        const decay = 0.05; 
+        finalX = THREE.MathUtils.lerp(linvel.x, moveX, decay);
+        finalZ = THREE.MathUtils.lerp(linvel.z, moveZ, decay);
+    } 
+
     // Apply Velocity
-    rigidBody.current.setLinvel({ x: moveX, y: currentVelY, z: moveZ }, true);
+    rigidBody.current.setLinvel({ x: finalX, y: currentVelY, z: finalZ }, true);
 
     // Apply Rotation
     if (Math.abs(moveX) > 0.01 || Math.abs(moveZ) > 0.01) {
@@ -375,7 +385,7 @@ export const Character: React.FC<CharacterProps> = ({
       colliders={false}
       enabledRotations={[false, false, false]}
       position={[0, 5, 0]}
-      friction={1}
+      friction={0} // Reduce base friction to allow momentum to slide
     >
       <CapsuleCollider args={[0.5, 0.4]} position={[0, 0.9, 0]} />
       <group ref={characterGroup} dispose={null}>
