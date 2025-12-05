@@ -49,6 +49,7 @@ export const RemoteCharacter: React.FC<RemoteCharacterProps> = ({
       animation === 'Jump' ? 'Jump' : 
       animation === 'RunJump' ? 'RunJump' :
       animation === 'land' ? 'land' : 
+      (animation === 'Falling' || animation === 'Fall') ? 'Falling' :
       (animation === 'Sitting' || animation === 'Sit') ? 'Sitting' : 'Idle';
 
     // Fallback logic
@@ -64,9 +65,18 @@ export const RemoteCharacter: React.FC<RemoteCharacterProps> = ({
         if (actions['Sit']) action = actions['Sit'];
         else action = actions['Idle'];
     }
+
+    // Safety check for Falling
+    if (animName === 'Falling' && !actions['Falling']) {
+         // If no Falling, fallback to Jump or Idle
+         if (actions['Fall']) action = actions['Fall'];
+         else action = actions['Jump'] || actions['Idle'];
+    }
     
     if (action) {
+       // Smooth transitions
        action.reset().fadeIn(0.2).play();
+       
        if (animName === 'Jump' || animName === 'RunJump' || animName === 'land') {
          action.setLoop(THREE.LoopOnce, 1);
          action.clampWhenFinished = true;
@@ -99,7 +109,7 @@ export const RemoteCharacter: React.FC<RemoteCharacterProps> = ({
   });
 
   return (
-    <group ref={group} dispose={null} scale={0.5}>
+    <group ref={group} dispose={null} scale={1}>
        {/* Render the manually cloned scene */}
        <primitive object={clone} />
        

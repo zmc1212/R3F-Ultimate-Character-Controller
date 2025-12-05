@@ -1,17 +1,19 @@
 
 import React, { useState, useRef, useEffect } from 'react';
-import { Physics } from '@react-three/rapier';
+import { Physics, RigidBody } from '@react-three/rapier';
 import { useFrame } from '@react-three/fiber';
 import { Character } from './Character';
 import { RemoteCharacter } from './RemoteCharacter';
 import { World } from './World';
 import { ConferenceRoom } from './ConferenceRoom';
 import { Chair } from './Furniture';
+import { JumpPad, DiscoFloor } from './InteractiveObjects';
+import { Teleporter, SpeedPad } from './SciFiProps';
+
 import { ControlMode, PlayerData } from '../types';
 import * as THREE from 'three';
 import { Socket } from 'socket.io-client';
-import { Environment, useTexture } from '@react-three/drei';
-
+import { Environment, useTexture, Box } from '@react-three/drei';
 interface ExperienceProps {
   controlMode: ControlMode;
   socket: Socket | null;
@@ -166,15 +168,67 @@ export const Experience: React.FC<ExperienceProps> = ({ controlMode, socket, pla
         <ConferenceRoom position={[20, 0, 0]} socket={socket} players={players} />
 
         {/* Interactive Chairs - Positioned in front of Conference Room */}
-        <group position={[20, 0, 7]}>
-            {/* Center Chair */}
-            <Chair position={[0, 0, 0]} rotation={[0, Math.PI, 0]} onInteract={handleChairInteract} />
-            {/* Right Side */}
+        <group position={[20, 0.2, 3.5]}>
+            <Chair position={[0, 0, 1]} rotation={[0, Math.PI, 0]} onInteract={handleChairInteract} />
             <Chair position={[3, 0, 1]} rotation={[0, Math.PI + 0.4, 0]} onInteract={handleChairInteract} />
-            {/* Left Side */}
             <Chair position={[-3, 0, 1]} rotation={[0, Math.PI - 0.4, 0]} onInteract={handleChairInteract} />
         </group>
 
+        {/* --- NEW INTERACTIVE OBJECTS --- */}
+        
+        {/* Jump Pad to the right of the conference room */}
+        <JumpPad position={[30, 0, 2]} />
+        
+        {/* Disco Floor at the entrance of the conference area */}
+        <DiscoFloor position={[20, 0.01, 12]} rows={3} cols={6} />
+        
+        {/* Floating Observation Platform (Accessible via Jump Pad) */}
+        <group position={[20, 8, 0]}>
+             <Box args={[14, 0.5, 6]} receiveShadow>
+                 <meshStandardMaterial color="#222" metalness={0.8} roughness={0.2} transparent opacity={0.9} />
+             </Box>
+             {/* Glass Railings */}
+             <Box args={[14, 1, 0.1]} position={[0, 0.75, 3]}>
+                 <meshStandardMaterial color="#00ffcc" transparent opacity={0.2} />
+             </Box>
+             <Box args={[14, 1, 0.1]} position={[0, 0.75, -3]}>
+                 <meshStandardMaterial color="#00ffcc" transparent opacity={0.2} />
+             </Box>
+             {/* Physics Body for Platform */}
+             <group visible={false}>
+                 {/* Manually aligning rigid body to visual mesh */}
+                 <RigidBody type="fixed" colliders="cuboid">
+                     <mesh position={[0, 0, 0]}>
+                        <boxGeometry args={[14, 0.5, 6]} />
+                     </mesh>
+                 </RigidBody>
+             </group>
+        </group>
+          {/* --- SCI-FI PROPS --- */}
+        
+        {/* Teleporter Pair: Ground <-> Platform */}
+        {/* Ground Portal */}
+        <Teleporter 
+            position={[10, 0, 10]} 
+            targetPosition={[20, 9, 0]} 
+            label="TO DECK" 
+            color="#00ffcc" 
+        />
+        
+        {/* Deck Portal */}
+        <Teleporter 
+            position={[25, 8.5, 0]} 
+            targetPosition={[8, 2, 10]} 
+            label="TO GROUND" 
+            color="#ff00ff" 
+        />
+
+        {/* Speed Pads Lane */}
+        <group position={[-10, 0, 0]}>
+            <SpeedPad position={[0, 0, 0]} direction={[0, 0, -1]} boostStrength={30} />
+            <SpeedPad position={[0, 0, -6]} direction={[0, 0, -1]} boostStrength={30} />
+            <SpeedPad position={[0, 0, -12]} direction={[0, 0, -1]} boostStrength={30} />
+        </group>
       </Physics>
 
       <TargetMarker position={targetLocation} />

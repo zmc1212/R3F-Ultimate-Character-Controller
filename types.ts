@@ -1,3 +1,4 @@
+
 export enum Controls {
   forward = 'forward',
   backward = 'backward',
@@ -7,7 +8,7 @@ export enum Controls {
   run = 'run',
 }
 
-export type AnimationState = 'idle' | 'walk' | 'run' | 'jump' | 'land' | 'Sitting';
+export type AnimationState = 'idle' | 'walk' | 'run' | 'jump' | 'land' | 'Sitting' | 'RunJump' | 'Falling';
 
 export type ControlMode = 'direct' | 'pointToClick';
 
