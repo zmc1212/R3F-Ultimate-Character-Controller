@@ -1,10 +1,12 @@
-import React, { Suspense, useMemo, useState, useEffect } from 'react';
+import React, { Suspense, useMemo, useState, useEffect, useRef } from 'react';
 import { Canvas } from '@react-three/fiber';
 import { KeyboardControls } from '@react-three/drei';
 import { io, Socket } from 'socket.io-client';
 import { Controls, ControlMode, PlayerData, ChatMessage } from './types';
 import { Experience } from './components/Experience';
 import { Interface } from './components/Interface';
+import { Minimap } from './components/Minimap';
+import * as THREE from 'three';
 
 const App: React.FC = () => {
   const [controlMode, setControlMode] = useState<ControlMode>('direct');
@@ -17,6 +19,10 @@ const App: React.FC = () => {
   const [socket, setSocket] = useState<Socket | null>(null);
   const [players, setPlayers] = useState<Record<string, PlayerData>>({});
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
+
+  // Shared Ref for Player Position & Rotation (Syncs Character -> Minimap)
+  // Stores { position: Vector3, rotation: number }
+  const playerPosRef = useRef({ position: new THREE.Vector3(), rotation: 0 });
 
   // Keyboard map
   const map = useMemo(
@@ -37,32 +43,32 @@ const App: React.FC = () => {
         reconnectionAttempts: 5,
         transports: ['websocket'],
         autoConnect: false // Wait until user joins
-    });
+    } as any);
 
-    newSocket.on('connect', () => {
+    (newSocket as any).on('connect', () => {
         console.log('Connected to server with ID:', newSocket.id);
     });
 
-    newSocket.on('init', (serverPlayers: Record<string, PlayerData>) => {
+    (newSocket as any).on('init', (serverPlayers: Record<string, PlayerData>) => {
         const otherPlayers = { ...serverPlayers };
         delete otherPlayers[newSocket.id as string];
         setPlayers(otherPlayers);
     });
 
-    newSocket.on('playerJoined', (player: PlayerData) => {
+    (newSocket as any).on('playerJoined', (player: PlayerData) => {
         if (player.id !== newSocket.id) {
             setPlayers((prev) => ({ ...prev, [player.id as string]: player }));
         }
     });
 
-    newSocket.on('playerMoved', (player: PlayerData) => {
+    (newSocket as any).on('playerMoved', (player: PlayerData) => {
         setPlayers((prev) => ({
             ...prev,
             [player.id as string]: { ...prev[player.id as string], ...player }
         }));
     });
 
-    newSocket.on('playerLeft', (id: string) => {
+    (newSocket as any).on('playerLeft', (id: string) => {
         setPlayers((prev) => {
             const next = { ...prev };
             delete next[id];
@@ -70,7 +76,7 @@ const App: React.FC = () => {
         });
     });
 
-    newSocket.on('chat', (message: ChatMessage) => {
+    (newSocket as any).on('chat', (message: ChatMessage) => {
         setChatMessages(prev => [...prev.slice(-49), message]); // Keep last 50
     });
 
@@ -85,6 +91,10 @@ const App: React.FC = () => {
       if (socket && name.trim()) {
           socket.connect();
           socket.emit('join', name);
+          setPlayerName(name);
+          setIsJoined(true);
+      } else if (name.trim()) {
+          // Allow offline play
           setPlayerName(name);
           setIsJoined(true);
       }
@@ -112,6 +122,7 @@ const App: React.FC = () => {
                     socket={socket}
                     players={players}
                     playerName={playerName}
+                    playerPosRef={playerPosRef}
                   />
               )}
             </Suspense>
@@ -126,6 +137,10 @@ const App: React.FC = () => {
             onSendMessage={handleSendMessage}
             currentPlayerName={playerName}
           />
+
+          {isJoined && (
+            <Minimap playerPosRef={playerPosRef} />
+          )}
         </div>
       </KeyboardControls>
     </>

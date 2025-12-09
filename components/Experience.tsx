@@ -8,9 +8,9 @@ import { World } from './World';
 import { ConferenceRoom } from './ConferenceRoom';
 import { Chair } from './Furniture';
 import { JumpPad, DiscoFloor } from './InteractiveObjects';
-// Updated imports
 import { Teleporter } from './Teleporter';
 import { SpeedPad } from './SpeedPad';
+import { Door } from './Door';
 import { ControlMode, PlayerData } from '../types';
 import * as THREE from 'three';
 import { Socket } from 'socket.io-client';
@@ -21,6 +21,7 @@ interface ExperienceProps {
   socket: Socket | null;
   players: Record<string, PlayerData>;
   playerName: string;
+  playerPosRef: React.MutableRefObject<{ position: THREE.Vector3; rotation: number }>;
 }
 
 const TargetMarker = ({ position }: { position: THREE.Vector3 | null }) => {
@@ -55,13 +56,17 @@ const TargetMarker = ({ position }: { position: THREE.Vector3 | null }) => {
     );
 };
 
-export const Experience: React.FC<ExperienceProps> = ({ controlMode, socket, players, playerName }) => {
+export const Experience: React.FC<ExperienceProps> = ({ controlMode, socket, players, playerName, playerPosRef }) => {
   const [targetLocation, setTargetLocation] = useState<THREE.Vector3 | null>(null);
   
   // Interaction State
   const [isSitting, setIsSitting] = useState(false);
   const [sitPose, setSitPose] = useState<{ position: THREE.Vector3, rotation: number } | null>(null);
   
+  // Door State
+  const [isOpeningDoor, setIsOpeningDoor] = useState(false);
+  const [isDoorOpen, setIsDoorOpen] = useState(false);
+
   // Track pending interaction (waiting for character to walk to chair)
   const pendingInteraction = useRef<{ type: 'sit', position: THREE.Vector3, rotation: number } | null>(null);
 
@@ -83,19 +88,12 @@ export const Experience: React.FC<ExperienceProps> = ({ controlMode, socket, pla
         setSitPose(null);
     }
     
-    // Always allow setting target, Character.tsx now prioritizes Manual Keys over this.
-    // This allows "Direct Mode" users to still click-to-walk if they want.
     setTargetLocation(point);
-    
-    // IMPORTANT: Clear any pending interaction so we don't sit down if we clicked the floor
     pendingInteraction.current = null;
   };
 
   const handleChairInteract = (entryPos: THREE.Vector3, sitPos: THREE.Vector3, sitRot: number) => {
-      // 1. Set nav target to the entry point in front of chair
       setTargetLocation(entryPos);
-      
-      // 2. Queue the sit action
       pendingInteraction.current = {
           type: 'sit',
           position: sitPos,
@@ -121,17 +119,28 @@ export const Experience: React.FC<ExperienceProps> = ({ controlMode, socket, pla
       setIsSitting(false);
       setSitPose(null);
   };
+  
+  // Door Logic
+  const handleOpenDoorRequest = () => {
+      if (!isDoorOpen) {
+          setIsOpeningDoor(true); // Triggers Character animation
+      }
+  };
+
+  const handleDoorOpened = () => {
+      // Character finished animation
+      setIsOpeningDoor(false);
+      setIsDoorOpen(true); // Physically open the door
+      
+      // Auto close after 5 seconds
+      setTimeout(() => setIsDoorOpen(false), 5000);
+  };
 
   return (
     <>
-      {/* 
-        ENVIRONMENT & BACKGROUND
-        Using a manual sphere for the visual background to allow height adjustment (position.y).
-        Using Environment component strictly for lighting (IBL).
-      */}
       <Environment map={envMap} />
       
-      {/* Visual Background Sphere - Raised by 10 units to adjust horizon */}
+      {/* Visual Background Sphere */}
       <mesh position={[0, 10, 0]} scale={100}>
         <sphereGeometry args={[1, 64, 64]} />
         <meshBasicMaterial map={envMap} side={THREE.BackSide} />
@@ -153,6 +162,9 @@ export const Experience: React.FC<ExperienceProps> = ({ controlMode, socket, pla
           isSitting={isSitting}
           sitPose={sitPose}
           onStopSitting={handleStopSitting}
+          positionRef={playerPosRef}
+          isOpeningDoor={isOpeningDoor}
+          onDoorOpened={handleDoorOpened}
         />
 
         {players && Object.entries(players).map(([id, p]) => (
@@ -169,19 +181,15 @@ export const Experience: React.FC<ExperienceProps> = ({ controlMode, socket, pla
         
         <ConferenceRoom position={[20, 0, 0]} socket={socket} players={players} />
 
-        {/* Interactive Chairs - Positioned in front of Conference Room */}
-        <group position={[20, 0, 4]}>
-            <Chair position={[0, 0, 0]} rotation={[0, Math.PI, 0]} onInteract={handleChairInteract} />
+        {/* Interactive Chairs */}
+        <group position={[20, 0.2, 3]}>
+            <Chair position={[0, 0, 1]} rotation={[0, Math.PI, 0]} onInteract={handleChairInteract} />
             <Chair position={[3, 0, 1]} rotation={[0, Math.PI + 0.4, 0]} onInteract={handleChairInteract} />
             <Chair position={[-3, 0, 1]} rotation={[0, Math.PI - 0.4, 0]} onInteract={handleChairInteract} />
         </group>
 
-        {/* --- INTERACTIVE OBJECTS --- */}
-        
-        {/* Jump Pad */}
+        {/* Interactive Objects */}
         <JumpPad position={[28, 0, 2]} />
-        
-        {/* Disco Floor */}
         <DiscoFloor position={[20, 0.05, 12]} rows={3} cols={6} />
         
         {/* Floating Observation Platform */}
@@ -189,14 +197,12 @@ export const Experience: React.FC<ExperienceProps> = ({ controlMode, socket, pla
              <Box args={[14, 0.5, 6]} receiveShadow>
                  <meshStandardMaterial color="#222" metalness={0.8} roughness={0.2} transparent opacity={0.9} />
              </Box>
-             {/* Glass Railings */}
              <Box args={[14, 1, 0.1]} position={[0, 0.75, 3]}>
                  <meshStandardMaterial color="#00ffcc" transparent opacity={0.2} />
              </Box>
              <Box args={[14, 1, 0.1]} position={[0, 0.75, -3]}>
                  <meshStandardMaterial color="#00ffcc" transparent opacity={0.2} />
              </Box>
-             {/* Physics Body for Platform */}
              <group visible={false}>
                  <RigidBody type="fixed" colliders="cuboid">
                      <mesh position={[0, 0, 0]}>
@@ -206,18 +212,13 @@ export const Experience: React.FC<ExperienceProps> = ({ controlMode, socket, pla
              </group>
         </group>
 
-        {/* --- SCI-FI PROPS --- */}
-        
-        {/* Teleporter Pair: Ground <-> Platform */}
-        {/* Ground Portal */}
+        {/* Sci-Fi Props */}
         <Teleporter 
             position={[10, 0, 10]} 
             targetPosition={[20, 9, 0]} 
             label="TO DECK" 
             color="#00ffcc" 
         />
-        
-        {/* Deck Portal */}
         <Teleporter 
             position={[25, 8.5, 0]} 
             targetPosition={[8, 2, 10]} 
@@ -225,23 +226,37 @@ export const Experience: React.FC<ExperienceProps> = ({ controlMode, socket, pla
             color="#ff00ff" 
         />
 
-        {/* Speed Pads Race Track (Loop) */}
         <group>
-            {/* Straight Leg 1: Moving "North" (-Z) */}
             <SpeedPad position={[-15, 0, 10]} direction={[0, 0, -1]} boostStrength={50} />
             <SpeedPad position={[-15, 0, 0]} direction={[0, 0, -1]} boostStrength={50} />
-            
-            {/* Corner 1: Turn Right (+X) */}
             <SpeedPad position={[-15, 0, -12]} direction={[1, 0, 0]} boostStrength={50} />
-            
-            {/* Corner 2: Turn "South" (+Z) */}
             <SpeedPad position={[-5, 0, -12]} direction={[0, 0, 1]} boostStrength={50} />
-            
-            {/* Straight Leg 2: Moving "South" (+Z) */}
             <SpeedPad position={[-5, 0, 0]} direction={[0, 0, 1]} boostStrength={50} />
-            
-            {/* Corner 3: Turn Left (-X) to close loop */}
             <SpeedPad position={[-5, 0, 10]} direction={[-1, 0, 0]} boostStrength={50} />
+        </group>
+
+        {/* Interactive Door Area */}
+        {/* Create a wall with a door hole */}
+        <group position={[-10, 0, 5]}>
+             <RigidBody type="fixed">
+                 <mesh position={[-3, 1.5, 0]} receiveShadow>
+                     <boxGeometry args={[4, 3, 0.5]} />
+                     <meshStandardMaterial color="#222" />
+                 </mesh>
+                 <mesh position={[3, 1.5, 0]} receiveShadow>
+                     <boxGeometry args={[4, 3, 0.5]} />
+                     <meshStandardMaterial color="#222" />
+                 </mesh>
+                 <mesh position={[0, 4, 0]} receiveShadow>
+                     <boxGeometry args={[10, 2, 0.5]} />
+                     <meshStandardMaterial color="#222" />
+                 </mesh>
+             </RigidBody>
+             <Door 
+                 position={[0, 0, 0]} 
+                 isOpen={isDoorOpen} 
+                 onOpenRequest={handleOpenDoorRequest} 
+             />
         </group>
 
       </Physics>

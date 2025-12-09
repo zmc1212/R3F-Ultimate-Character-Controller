@@ -8,7 +8,7 @@ export enum Controls {
   run = 'run',
 }
 
-export type AnimationState = 'idle' | 'walk' | 'run' | 'jump' | 'land' | 'Sitting' | 'RunJump' | 'Falling';
+export type AnimationState = 'idle' | 'walk' | 'run' | 'jump' | 'land' | 'Sitting' | 'RunJump' | 'Falling' | 'OpenDoor' | 'PickingUp';
 
 export type ControlMode = 'direct' | 'pointToClick';
 
@@ -28,4 +28,11 @@ export interface ChatMessage {
   senderName: string;
   text: string;
   timestamp: number;
+}
+
+export interface InventoryItem {
+    id: string;
+    name: string;
+    icon: string;
+    description?: string;
 }

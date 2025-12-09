@@ -18,6 +18,11 @@ interface CharacterProps {
   isSitting?: boolean;
   sitPose?: { position: THREE.Vector3; rotation: number } | null;
   onStopSitting?: () => void;
+  positionRef?: React.MutableRefObject<{ position: THREE.Vector3; rotation: number }>;
+  
+  // New prop for Door Interaction
+  isOpeningDoor?: boolean;
+  onDoorOpened?: () => void; // Callback when animation finishes
 }
 
 export const Character: React.FC<CharacterProps> = ({
@@ -28,7 +33,10 @@ export const Character: React.FC<CharacterProps> = ({
   onTargetReached,
   isSitting = false,
   sitPose = null,
-  onStopSitting
+  onStopSitting,
+  positionRef,
+  isOpeningDoor = false,
+  onDoorOpened
 }) => {
   // Leva Controls
   const {
@@ -58,6 +66,7 @@ export const Character: React.FC<CharacterProps> = ({
   const isLanding = useRef(false);
   const jumpType = useRef<'Jump' | 'RunJump'>('Jump');
   const jumpCooldown = useRef(0);
+  const currentVelYRef = useRef(0);
 
   // Model loading
   const { scene, animations } = useGLTF(MODEL_URL);
@@ -120,19 +129,28 @@ export const Character: React.FC<CharacterProps> = ({
     let animName = animation;
     // Map specialized states to available animations
     if (isSitting) {
-      animName = actions['Sitting'] ? 'Sitting' : (actions['Sitting'] ? 'Sitting' : 'Idle');
+      animName = actions['Sitting'] ? 'Sitting' : (actions['Sit'] ? 'Sit' : 'Idle');
+    }
+    
+    // OpenDoor overrides everything
+    if (isOpeningDoor) {
+        // If we don't have OpenDoor anim, standard mixamo often uses "Interaction" or "Push"
+        // Here we fallback to Idle but conceptually we want a gesture
+        // Assuming the model might have 'Interact' or we just hold Idle.
+        // For this demo, let's assume 'Interact' exists or fallback to Idle.
+        animName = actions['OpenDoor'] ? 'OpenDoor' : (actions['Interact'] ? 'Interact' : 'Idle');
     }
 
     let action = actions[animName] || actions['Idle'];
 
     // Fallback for Falling
     if (animName === 'Falling' && !actions['Falling']) {
-      if (actions['Falling']) action = actions['Falling'];
+      if (actions['Fall']) action = actions['Fall'];
       else action = actions['Jump'] || actions['Idle']; // Clamp Jump frame
     }
 
     if (action) {
-      const isOneShot = animName === 'Jump' || animName === 'RunJump' || animName === 'Landing';
+      const isOneShot = animName === 'Jump' || animName === 'RunJump' || animName === 'Landing' || animName === 'OpenDoor' || animName === 'Interact';
 
       action.reset().fadeIn(0.2).play();
 
@@ -140,6 +158,14 @@ export const Character: React.FC<CharacterProps> = ({
         action.setLoop(THREE.LoopOnce, 1);
         action.clampWhenFinished = true;
         if (animName === 'RunJump') action.timeScale = 0.6;
+        
+        // Handle OpenDoor finish
+        if (isOpeningDoor && onDoorOpened) {
+            const duration = action.getClip().duration;
+            setTimeout(() => {
+                onDoorOpened();
+            }, duration * 1000 * 0.8); // Trigger open slightly before anim ends
+        }
       } else {
         action.timeScale = 1;
       }
@@ -148,14 +174,27 @@ export const Character: React.FC<CharacterProps> = ({
     return () => {
       if (action) action.fadeOut(0.2);
     };
-  }, [animation, actions, isSitting]);
+  }, [animation, actions, isSitting, isOpeningDoor]);
 
   useFrame((state, delta) => {
     if (!rigidBody.current || !characterGroup.current) return;
 
-    // --- 0. PRE-CHECKS & SITTING ---
+    // --- 0. PRE-CHECKS & SITTING & DOOR ---
     const keys = getKeys();
     const { forward, backward, left, right, jump, run } = keys;
+
+    // Door Opening Lock
+    if (isOpeningDoor) {
+        // Zero velocity
+        rigidBody.current.setLinvel({ x: 0, y: 0, z: 0 }, true);
+        rigidBody.current.setAngvel({ x: 0, y: 0, z: 0 }, true);
+        // Sync Update
+        if (onUpdate && Date.now() - lastUpdateRef.current > 50) {
+            onUpdate({ x: rigidBody.current.translation().x, y: rigidBody.current.translation().y, z: rigidBody.current.translation().z, rotation: currentRotation.current, animation: 'OpenDoor' });
+            lastUpdateRef.current = Date.now();
+        }
+        return;
+    }
 
     if (isSitting && sitPose) {
       // Break out of sit
@@ -189,13 +228,25 @@ export const Character: React.FC<CharacterProps> = ({
       );
       state.camera.position.lerp(targetCam, 0.1);
       state.camera.lookAt(new THREE.Vector3(sitPose.position.x, sitPose.position.y + 1.5, sitPose.position.z));
+      
+      // Update Position Ref for Minimap
+      if (positionRef) {
+          positionRef.current.position.copy(sitPose.position);
+          positionRef.current.rotation = currentRotation.current;
+      }
       return;
     }
 
     // --- 1. SENSORS & PHYSICS ---
     const linvel = rigidBody.current.linvel();
-    let currentVelY = linvel.y;
+    currentVelYRef.current = linvel.y;
     const currentPos = rigidBody.current.translation();
+    
+    // Update Position Ref for Minimap
+    if (positionRef) {
+        positionRef.current.position.set(currentPos.x, currentPos.y, currentPos.z);
+        positionRef.current.rotation = currentRotation.current;
+    }
 
     // Ground Check (Robust Raycast)
     const rayOrigin = { x: currentPos.x, y: currentPos.y + 0.5, z: currentPos.z };
@@ -209,7 +260,7 @@ export const Character: React.FC<CharacterProps> = ({
     }
 
     // Determine Ground Status
-    if (currentVelY > 1.0) { // Increased threshold to avoid false air-state on bumps
+    if (currentVelYRef.current > 1.0) { 
       isOnFloor.current = false;
     } else {
       isOnFloor.current = groundDistance < 0.55;
@@ -217,7 +268,7 @@ export const Character: React.FC<CharacterProps> = ({
 
     // Detect Landing Impact
     if (!wasOnFloor.current && isOnFloor.current) {
-      if (currentVelY < -1.0) { // Only land on hard impacts
+      if (currentVelYRef.current < -1.0) { 
         isLanding.current = true;
          const landAction = actions['Landing'];
         const duration = landAction ? landAction.getClip().duration : 0.8;
@@ -289,15 +340,19 @@ export const Character: React.FC<CharacterProps> = ({
     // --- 3. STATE MACHINE & ANIMATION ---
     let newState = animation;
 
-    // Priority 1: Landing (Lock movement)
-    if (isLanding.current) {
+    // Priority 1: Interaction (Opening Door)
+    if (isOpeningDoor) {
+        newState = 'OpenDoor'; // Or 'Interact'
+    }
+    // Priority 2: Landing
+    else if (isLanding.current) {
       moveX = 0;
       moveZ = 0;
       newState = 'Landing';
     }
-    // Priority 2: Jump Trigger
+    // Priority 3: Jump Trigger
     else if (jump && isOnFloor.current && Date.now() - jumpCooldown.current > 500) {
-      currentVelY = jumpForce; // Override physics Y
+      currentVelYRef.current = jumpForce; // Override physics Y
       isOnFloor.current = false; // Force air state
       jumpCooldown.current = Date.now();
 
@@ -305,15 +360,15 @@ export const Character: React.FC<CharacterProps> = ({
       jumpType.current = (run && isMoving) ? 'RunJump' : 'Jump';
       newState = jumpType.current;
     }
-    // Priority 3: Airborne State
+    // Priority 4: Airborne State
     else if (!isOnFloor.current) {
-      if (currentVelY < -0.1) {
+      if (currentVelYRef.current < -0.1) {
         newState = 'Falling';
       } else {
         newState = jumpType.current;
       }
     }
-    // Priority 4: Ground Movement
+    // Priority 5: Ground Movement
     else {
       if (Math.abs(moveX) > 0.1 || Math.abs(moveZ) > 0.1) {
         newState = (Math.abs(desiredSpeed) > walkSpeed + 1) ? 'Running' : 'Walking';
@@ -330,30 +385,19 @@ export const Character: React.FC<CharacterProps> = ({
     // --- 4. APPLY PHYSICS & TRANSFORMS ---
 
     // MOMENTUM PRESERVATION LOGIC FOR SPEED PADS
-    // Calculate current horizontal speed from physics engine
     const currentHorizontalSpeed = Math.sqrt(linvel.x * linvel.x + linvel.z * linvel.z);
     
-    // Calculate desired input speed
-    const inputSpeed = Math.sqrt(moveX * moveX + moveZ * moveZ);
-    
-    // Final velocity to apply
     let finalX = moveX;
     let finalZ = moveZ;
 
-    // If current physical speed is significantly higher than input speed (e.g., boosted by SpeedPad),
-    // don't clamp it instantly. Let it decay naturally using linear interpolation (Drag).
-    // Threshold is set slightly above max run speed to avoid interfering with normal input.
     if (currentHorizontalSpeed > runSpeed + 2.0) {
-        // Decay factor (0.05 means very slippery/low friction, 0.2 means quick stop)
         const decay = 0.05; 
         finalX = THREE.MathUtils.lerp(linvel.x, moveX, decay);
         finalZ = THREE.MathUtils.lerp(linvel.z, moveZ, decay);
     } 
 
-    // Apply Velocity
-    rigidBody.current.setLinvel({ x: finalX, y: currentVelY, z: finalZ }, true);
+    rigidBody.current.setLinvel({ x: finalX, y: currentVelYRef.current, z: finalZ }, true);
 
-    // Apply Rotation
     if (Math.abs(moveX) > 0.01 || Math.abs(moveZ) > 0.01) {
       let angleDiff = targetRotation.current - currentRotation.current;
       while (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
@@ -385,7 +429,7 @@ export const Character: React.FC<CharacterProps> = ({
       colliders={false}
       enabledRotations={[false, false, false]}
       position={[0, 5, 0]}
-      friction={0} // Reduce base friction to allow momentum to slide
+      friction={0} 
     >
       <CapsuleCollider args={[0.5, 0.4]} position={[0, 0.9, 0]} />
       <group ref={characterGroup} dispose={null}>
