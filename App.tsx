@@ -1,8 +1,9 @@
+
 import React, { Suspense, useMemo, useState, useEffect, useRef } from 'react';
 import { Canvas } from '@react-three/fiber';
 import { KeyboardControls } from '@react-three/drei';
 import { io, Socket } from 'socket.io-client';
-import { Controls, ControlMode, PlayerData, ChatMessage } from './types';
+import { Controls, ControlMode, PlayerData, ChatMessage, InventoryItem } from './types';
 import { Experience } from './components/Experience';
 import { Interface } from './components/Interface';
 import { Minimap } from './components/Minimap';
@@ -14,6 +15,7 @@ const App: React.FC = () => {
   // App State
   const [playerName, setPlayerName] = useState<string>('');
   const [isJoined, setIsJoined] = useState(false);
+  const [inventory, setInventory] = useState<InventoryItem[]>([]);
   
   // Multiplayer State
   const [socket, setSocket] = useState<Socket | null>(null);
@@ -123,6 +125,7 @@ const App: React.FC = () => {
                     players={players}
                     playerName={playerName}
                     playerPosRef={playerPosRef}
+                    setInventory={setInventory as any}
                   />
               )}
             </Suspense>
@@ -136,6 +139,7 @@ const App: React.FC = () => {
             chatMessages={chatMessages}
             onSendMessage={handleSendMessage}
             currentPlayerName={playerName}
+            inventory={inventory}
           />
 
           {isJoined && (

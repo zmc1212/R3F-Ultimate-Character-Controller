@@ -1,6 +1,8 @@
+
 import React, { useState, useRef, useEffect } from 'react';
-import { ControlMode, ChatMessage } from '../types';
-import { MousePointer2, Gamepad2, Send, Power, Terminal } from 'lucide-react';
+import { ControlMode, ChatMessage, InventoryItem } from '../types';
+import { MousePointer2, Gamepad2, Send, Power, Terminal, Backpack as BackpackIcon } from 'lucide-react';
+import { Backpack } from './Backpack';
 
 interface InterfaceProps {
   controlMode: ControlMode;
@@ -10,6 +12,7 @@ interface InterfaceProps {
   chatMessages: ChatMessage[];
   onSendMessage: (text: string) => void;
   currentPlayerName: string;
+  inventory?: InventoryItem[]; // Optional for now
 }
 
 // Helper component for keyboard keys
@@ -26,11 +29,14 @@ export const Interface = ({
   onJoin,
   chatMessages,
   onSendMessage,
-  currentPlayerName
+  currentPlayerName,
+  inventory = []
 }: InterfaceProps) => {
   const [nameInput, setNameInput] = useState('');
   const [chatInput, setChatInput] = useState('');
   const chatEndRef = useRef<HTMLDivElement>(null);
+  
+  const [isBackpackOpen, setIsBackpackOpen] = useState(false);
 
   // Auto-scroll chat
   useEffect(() => {
@@ -93,15 +99,31 @@ export const Interface = ({
   return (
     <div className="absolute top-0 left-0 w-full h-full pointer-events-none p-6 flex flex-col justify-between z-10 font-mono">
       {/* Header */}
-      <div className="flex justify-between items-start">
+      <div className="flex gap-10 items-start">
         <div className="bg-[#111]/80 backdrop-blur border-l-4 border-[#00ffcc] p-4 text-white">
             <h1 className="text-2xl font-bold leading-none tracking-tighter text-[#00ffcc]">
-            CYBER_CONTROLLER_V3
+            ZLY_MEETING_V3
             </h1>
             <p className="text-xs text-white/50 mt-1 uppercase tracking-widest">
-            OPERATOR: {currentPlayerName}
+            当前用户: {currentPlayerName}
             </p>
         </div>
+
+        {/* Inventory Toggle */}
+        <div className="pointer-events-auto">
+             <button 
+                onClick={() => setIsBackpackOpen(!isBackpackOpen)}
+                className={`flex flex-col items-center gap-1 p-3 border ${isBackpackOpen ? 'bg-[#00ffcc] text-black border-[#00ffcc]' : 'bg-[#111]/80 border-white/20 text-[#00ffcc] hover:border-[#00ffcc]'} transition-all rounded-sm backdrop-blur`}
+             >
+                <BackpackIcon size={24} />
+                <span className="text-[10px] font-bold uppercase tracking-wider">背包</span>
+             </button>
+        </div>
+      </div>
+      
+      {/* Render Backpack */}
+      <div className="pointer-events-auto">
+          <Backpack items={inventory} isOpen={isBackpackOpen} onClose={() => setIsBackpackOpen(false)} />
       </div>
 
       <div className="flex items-end justify-between w-full gap-8">
@@ -144,6 +166,7 @@ export const Interface = ({
                  <div className="flex items-center gap-2"><Kbd>D</Kbd> RIGHT</div>
                  <div className="col-span-2 flex items-center gap-2 mt-2"><Kbd className="w-12">SPACE</Kbd> JUMP_THRUST</div>
                  <div className="col-span-2 flex items-center gap-2"><Kbd className="w-12">SHIFT</Kbd> OVERDRIVE</div>
+                 <div className="col-span-2 flex items-center gap-2 mt-1 text-[#00ffcc]"><Kbd className="w-12 border-[#00ffcc]">E</Kbd> INTERACT</div>
               </div>
             ) : (
               <div className="text-xs space-y-2">

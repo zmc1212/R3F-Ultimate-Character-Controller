@@ -13,7 +13,7 @@ export const Backpack: React.FC<BackpackProps> = ({ items, isOpen, onClose }) =>
     if (!isOpen) return null;
 
     return (
-        <div className="absolute right-4 top-20 w-64 bg-black/90 border border-[#00ffcc] text-white p-4 clip-path-polygon backdrop-blur-md z-40 shadow-[0_0_20px_rgba(0,255,204,0.1)] font-mono">
+        <div className="absolute left-4 top-40 w-64 bg-black/90 border border-[#00ffcc] text-white p-4 clip-path-polygon backdrop-blur-md z-40 shadow-[0_0_20px_rgba(0,255,204,0.1)] font-mono">
             <div className="flex justify-between items-center mb-4 border-b border-[#00ffcc]/30 pb-2">
                 <div className="flex items-center gap-2 text-[#00ffcc]">
                     <BackpackIcon size={18} />
