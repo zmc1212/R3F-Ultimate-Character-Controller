@@ -28,9 +28,16 @@ interface CharacterProps {
   isPickingUp?: boolean;
   onPickupFinished?: () => void;
 
+  // Push
+  isPushing?: boolean;
+  onPushFinished?: () => void; // Deprecated but kept for compatibility
+
   // New Features
   inventory?: InventoryItem[];
   emote?: string | null;
+  
+  // Physics Modifiers
+  gravityScale?: number;
 }
 
 export const Character: React.FC<CharacterProps> = ({
@@ -47,8 +54,11 @@ export const Character: React.FC<CharacterProps> = ({
   onDoorOpened,
   isPickingUp = false,
   onPickupFinished,
+  isPushing = false,
+  onPushFinished,
   inventory = [],
-  emote = null
+  emote = null,
+  gravityScale = 1
 }) => {
   // Leva Controls
   const {
@@ -161,6 +171,10 @@ export const Character: React.FC<CharacterProps> = ({
     if (emote) {
         animName = actions[emote] ? emote : 'Idle';
     }
+    
+    // Push fallbacks (Push and PushIdle)
+    if (animName === 'Push' && !actions['Push']) animName = actions['Interact'] ? 'Interact' : 'Idle';
+    if (animName === 'PushIdle' && !actions['PushIdle']) animName = 'Idle';
 
     let action = actions[animName] || actions['Idle'];
 
@@ -208,7 +222,7 @@ export const Character: React.FC<CharacterProps> = ({
     return () => {
       if (action) action.fadeOut(0.2);
     };
-  }, [animation, actions, isSitting, isOpeningDoor, isPickingUp, emote]);
+  }, [animation, actions, isSitting, isOpeningDoor, isPickingUp, emote]); // isPushing removed from deps as it triggers state via useFrame
 
   useFrame((state, delta) => {
     if (!rigidBody.current || !characterGroup.current) return;
@@ -227,22 +241,37 @@ export const Character: React.FC<CharacterProps> = ({
     }
 
     // Ground Check
-    const rayOrigin = { x: currentPos.x, y: currentPos.y + 0.5, z: currentPos.z };
+    const rayOrigin = { x: currentPos.x, y: currentPos.y + 0.1, z: currentPos.z };
     const rayDir = { x: 0, y: -1, z: 0 };
     let groundDistance = 100;
     if (rapier && world && rigidBody.current) {
       const ray = new rapier.Ray(rayOrigin, rayDir);
-      // Explicitly exclude the character's rigid body to prevent self-detection
-      // castRay(ray, maxToi, solid, groups, excludeCollider, excludeRigidBody)
-      const hit = world.castRay(ray, 2.5, true, 0xffffffff, null, rigidBody.current); 
+      // castRay(ray, maxToi, solid, filterFlags, filterGroups, excludeCollider, excludeRigidBody)
+      const hit = world.castRay(
+          ray, 
+          2.5, 
+          true, 
+          undefined, 
+          undefined, 
+          null, 
+          rigidBody.current
+      ); 
       if (hit) groundDistance = hit.timeOfImpact;
     }
 
-    if (currentVelYRef.current > 1.0) { 
-      isOnFloor.current = false;
+    // Ground Detection Logic
+    if (isPushing) {
+        // FORCE GROUNDED STATE when pushing
+        // This prevents the character from detecting a "Fall" or triggering a "Jump" 
+        // if they slightly climb onto the ball's collider.
+        isOnFloor.current = true;
     } else {
-      // Threshold 0.52 (2cm from feet)
-      isOnFloor.current = groundDistance < 0.52;
+        if (currentVelYRef.current > 1.0) { 
+          isOnFloor.current = false;
+        } else {
+          // Threshold 0.15 matches ray origin height
+          isOnFloor.current = groundDistance < 0.15;
+        }
     }
 
     // Logic-based Landing detection
@@ -256,8 +285,8 @@ export const Character: React.FC<CharacterProps> = ({
     // --- 2. JETPACK LOGIC ---
     isFlying.current = false;
     if (hasJetpack && !isOnFloor.current && jump) {
-        // Apply upward thrust
-        currentVelYRef.current += 30 * delta; 
+        // Apply upward thrust (adjust for gravity scale if needed)
+        currentVelYRef.current += 30 * delta * gravityScale; 
         currentVelYRef.current = Math.min(currentVelYRef.current, 5); 
         isFlying.current = true;
     }
@@ -275,7 +304,9 @@ export const Character: React.FC<CharacterProps> = ({
 
     if (isManualMove) {
       if (currentNavTarget.current) currentNavTarget.current = null;
-      desiredSpeed = run ? runSpeed : walkSpeed;
+      // When pushing, move at 80% speed (up from 50%) for better responsiveness
+      desiredSpeed = isPushing ? (walkSpeed * 0.8) : (run ? runSpeed : walkSpeed);
+      
       const camForward = new THREE.Vector3(0, 0, -1).applyAxisAngle(new THREE.Vector3(0, 1, 0), cameraOrbit.current);
       const camRight = new THREE.Vector3(1, 0, 0).applyAxisAngle(new THREE.Vector3(0, 1, 0), cameraOrbit.current);
       const moveDir = new THREE.Vector3(0, 0, 0);
@@ -340,12 +371,20 @@ export const Character: React.FC<CharacterProps> = ({
     }
     else if (!isOnFloor.current) {
       // Keep falling until landed
-      if (currentVelYRef.current < -0.1) newState = 'Falling';
+      if (currentVelYRef.current < -0.1 && !isFlying.current && !isPushing) newState = 'Falling';
       else newState = jumpType.current;
     }
     // Priority 4: Ground Movement
     else {
-      if (emote && !isManualMove) {
+      if (isPushing) {
+          // If pushing toggle is active
+          if (Math.abs(moveX) > 0.1 || Math.abs(moveZ) > 0.1) {
+              newState = 'Push'; // Walking while pushing
+          } else {
+              newState = 'PushIdle'; // Standing still in push pose
+          }
+      } 
+      else if (emote && !isManualMove) {
           newState = emote;
            if (emote === 'Dance') {
             currentRotation.current += delta * 5;
@@ -391,7 +430,14 @@ export const Character: React.FC<CharacterProps> = ({
         finalX = THREE.MathUtils.lerp(linvel.x, moveX, decay);
         finalZ = THREE.MathUtils.lerp(linvel.z, moveZ, decay);
     } 
-    rigidBody.current.setLinvel({ x: finalX, y: currentVelYRef.current, z: finalZ }, true);
+    
+    // Prevent climbing on ball: Clamp Y velocity if pushing and moving up
+    let finalY = currentVelYRef.current;
+    if (isPushing && finalY > 0.1) {
+         finalY = -2.0; // Force down to prevent climbing
+    }
+
+    rigidBody.current.setLinvel({ x: finalX, y: finalY, z: finalZ }, true);
 
     if (Math.abs(moveX) > 0.01 || Math.abs(moveZ) > 0.01) {
       let angleDiff = targetRotation.current - currentRotation.current;
@@ -431,11 +477,10 @@ export const Character: React.FC<CharacterProps> = ({
       enabledRotations={[false, false, false]}
       position={[0, 5, 0]}
       friction={0} 
-      // Physics-based Landing Trigger
+      gravityScale={gravityScale} 
       onCollisionEnter={({ other }) => {
           if (rigidBody.current) {
               const vel = rigidBody.current.linvel();
-              // Only trigger landing on hard impacts
               if (vel.y < -2.0 && other.rigidBody && other.rigidBody.isFixed()) {
                   triggerLanding();
               }

@@ -1,4 +1,3 @@
-
 import React, { useState, useRef, useEffect } from 'react';
 import { Physics, RigidBody } from '@react-three/rapier';
 import { useFrame } from '@react-three/fiber';
@@ -12,6 +11,7 @@ import { Teleporter } from './Teleporter';
 import { SpeedPad } from './SpeedPad';
 import { Door } from './Door';
 import { ItemPickup } from './ItemPickup';
+import { CyberBall, ZeroGZone } from './MiniGames'; 
 import { ControlMode, PlayerData, InventoryItem } from '../types';
 import * as THREE from 'three';
 import { Socket } from 'socket.io-client';
@@ -86,6 +86,9 @@ export const Experience: React.FC<ExperienceProps> = ({
   const [isPickingUp, setIsPickingUp] = useState(false);
   const [pendingPickup, setPendingPickup] = useState<InventoryItem | null>(null);
 
+  // Push State
+  const [isPushing, setIsPushing] = useState(false);
+
   // Track pending interaction (waiting for character to walk to chair)
   const pendingInteraction = useRef<{ type: 'sit', position: THREE.Vector3, rotation: number } | null>(null);
 
@@ -109,11 +112,12 @@ export const Experience: React.FC<ExperienceProps> = ({
         setIsSitting(false);
         setSitPose(null);
     }
-    // Cancel emote on move
     setEmote(null);
-    
     setTargetLocation(point);
     pendingInteraction.current = null;
+    
+    // Auto-disable push mode on floor click
+    if (isPushing) setIsPushing(false);
   };
 
   const handleChairInteract = (entryPos: THREE.Vector3, sitPos: THREE.Vector3, sitRot: number) => {
@@ -160,20 +164,22 @@ export const Experience: React.FC<ExperienceProps> = ({
   const handlePickup = (item: InventoryItem) => {
       if (!isPickingUp) {
           setPendingPickup(item);
-          setIsPickingUp(true); // Triggers animation
+          setIsPickingUp(true); 
       }
   };
 
   const handlePickupFinished = () => {
       if (pendingPickup) {
-          // Add to inventory (via App prop)
           setInventory(prev => [...prev, pendingPickup]);
-          // Remove from world
           setAvailableItems(prev => prev.filter(i => i.id !== pendingPickup.id));
-          
           setPendingPickup(null);
       }
       setIsPickingUp(false);
+  };
+
+  // Push Logic (Toggle)
+  const handlePushToggle = () => {
+      setIsPushing(!isPushing);
   };
 
   return (
@@ -202,13 +208,11 @@ export const Experience: React.FC<ExperienceProps> = ({
           sitPose={sitPose}
           onStopSitting={handleStopSitting}
           positionRef={playerPosRef}
-          // Door
           isOpeningDoor={isOpeningDoor}
           onDoorOpened={handleDoorOpened}
-          // Pickup
           isPickingUp={isPickingUp}
           onPickupFinished={handlePickupFinished}
-          // New
+          isPushing={isPushing} 
           inventory={inventory}
           emote={emote}
         />
@@ -253,7 +257,6 @@ export const Experience: React.FC<ExperienceProps> = ({
                      </mesh>
                  </RigidBody>
              </group>
-             {/* Item on platform */}
              {availableItems.find(i => i.id === 'item-3') && (
                  <ItemPickup 
                     item={availableItems.find(i => i.id === 'item-3')!} 
@@ -322,6 +325,10 @@ export const Experience: React.FC<ExperienceProps> = ({
                onPickup={handlePickup} 
             />
         )}
+
+        {/* Mini Games */}
+        <CyberBall position={[40, 0, 0]} isPushing={isPushing} onPushToggle={handlePushToggle} />
+        <ZeroGZone position={[-30, 0, 0]} />
 
       </Physics>
 

@@ -1,4 +1,3 @@
-
 import React, { useEffect, useRef, useMemo } from 'react';
 import * as THREE from 'three';
 import { useFrame } from '@react-three/fiber';
@@ -40,17 +39,21 @@ export const RemoteCharacter: React.FC<RemoteCharacterProps> = ({
 
   // Handle Animations
   useEffect(() => {
-    const animName = animation;
+    let animName = animation;
 
     // Fallback logic
     let action = actions[animName] || actions['Idle'];
     
-    // Safety aliases
+    // Safety aliases & fallbacks
     if (!action) {
         if (animName === 'Sitting' && actions['Sit']) action = actions['Sit'];
         if (animName === 'Falling' && actions['Fall']) action = actions['Fall'];
         if (animName === 'RunJump' && actions['Jump']) action = actions['Jump'];
-        if (animName === 'Flying' && actions['Jump']) action = actions['Jump']; // Fallback for flying
+        if (animName === 'Flying' && actions['Jump']) action = actions['Jump']; 
+        
+        // Push Fallbacks
+        if (animName === 'Push' && !actions['Push']) action = actions['Interact'] || actions['Punch'] || actions['Idle'];
+        if (animName === 'PushIdle') action = actions['Idle']; // Usually standard idle is fine, or specific idle
     }
     
     if (action) {
