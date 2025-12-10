@@ -23,22 +23,11 @@ interface ExperienceProps {
   players: Record<string, PlayerData>;
   playerName: string;
   playerPosRef: React.MutableRefObject<{ position: THREE.Vector3; rotation: number }>;
-  onInventoryUpdate?: (items: InventoryItem[]) => void; // Optional if we want to bubble up, but we can also pass update function to Interface inside App if refactored.
-  // Actually, Interface is outside Experience. So we need to hoist inventory state to App if we want correct data flow,
-  // OR, we can attach inventory to a ref/state here and Interface reads it? 
-  // No, App.tsx renders Interface. So Experience should accept setInventory or bubble event.
-  // HOWEVER, prompt says "Update components/Experience.tsx: Manage the state of collected items".
-  // This implies Experience holds state. But Interface needs to display it.
-  // React way: Lift state to App.
+  inventory: InventoryItem[];
+  setInventory: React.Dispatch<React.SetStateAction<InventoryItem[]>>;
+  emote: string | null;
+  setEmote: (emote: string | null) => void;
 }
-
-// Since I cannot modify App.tsx in this specific response block easily without breaking flow or if the user didn't ask explicitly to re-write App.tsx for state lifting, 
-// I will assume I should add the state here and maybe use a context or just update the logic.
-// BUT, the Interface is outside.
-// I will modify App.tsx to pass an inventory setter or manage inventory there. 
-// Wait, I can only update files provided in the prompt usually. 
-// But I will follow standard React patterns. I will assume App.tsx will be updated to hold Inventory state.
-// Let's modify App.tsx in the next file to hold inventory.
 
 const TargetMarker = ({ position }: { position: THREE.Vector3 | null }) => {
     const meshRef = useRef<THREE.Mesh>(null);
@@ -79,8 +68,8 @@ const INITIAL_ITEMS: InventoryItem[] = [
     { id: 'item-3', name: 'Access Key', icon: '🔑', description: 'Level 5 security clearance.' }
 ];
 
-export const Experience: React.FC<ExperienceProps & { setInventory: (items: InventoryItem[]) => void }> = ({ 
-    controlMode, socket, players, playerName, playerPosRef, setInventory 
+export const Experience: React.FC<ExperienceProps> = ({ 
+    controlMode, socket, players, playerName, playerPosRef, inventory, setInventory, emote, setEmote 
 }) => {
   const [targetLocation, setTargetLocation] = useState<THREE.Vector3 | null>(null);
   
@@ -109,6 +98,10 @@ export const Experience: React.FC<ExperienceProps & { setInventory: (items: Inve
       if (socket && socket.connected) {
           socket.emit('move', data);
       }
+      // Reset emote if character moves
+      if (emote && (data.animation === 'Walking' || data.animation === 'Running')) {
+          setEmote(null);
+      }
   };
 
   const handleFloorClick = (point: THREE.Vector3) => {
@@ -116,6 +109,8 @@ export const Experience: React.FC<ExperienceProps & { setInventory: (items: Inve
         setIsSitting(false);
         setSitPose(null);
     }
+    // Cancel emote on move
+    setEmote(null);
     
     setTargetLocation(point);
     pendingInteraction.current = null;
@@ -172,7 +167,7 @@ export const Experience: React.FC<ExperienceProps & { setInventory: (items: Inve
   const handlePickupFinished = () => {
       if (pendingPickup) {
           // Add to inventory (via App prop)
-          setInventory((prev: InventoryItem[]) => [...prev, pendingPickup]);
+          setInventory(prev => [...prev, pendingPickup]);
           // Remove from world
           setAvailableItems(prev => prev.filter(i => i.id !== pendingPickup.id));
           
@@ -213,6 +208,9 @@ export const Experience: React.FC<ExperienceProps & { setInventory: (items: Inve
           // Pickup
           isPickingUp={isPickingUp}
           onPickupFinished={handlePickupFinished}
+          // New
+          inventory={inventory}
+          emote={emote}
         />
 
         {players && Object.entries(players).map(([id, p]) => (

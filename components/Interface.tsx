@@ -1,7 +1,7 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { ControlMode, ChatMessage, InventoryItem } from '../types';
-import { MousePointer2, Gamepad2, Send, Power, Terminal, Backpack as BackpackIcon } from 'lucide-react';
+import { MousePointer2, Gamepad2, Send, Power, Terminal, Backpack as BackpackIcon, Music, Hand } from 'lucide-react';
 import { Backpack } from './Backpack';
 
 interface InterfaceProps {
@@ -12,7 +12,8 @@ interface InterfaceProps {
   chatMessages: ChatMessage[];
   onSendMessage: (text: string) => void;
   currentPlayerName: string;
-  inventory?: InventoryItem[]; // Optional for now
+  inventory?: InventoryItem[]; 
+  onEmote?: (emote: string | null) => void;
 }
 
 // Helper component for keyboard keys
@@ -30,13 +31,17 @@ export const Interface = ({
   chatMessages,
   onSendMessage,
   currentPlayerName,
-  inventory = []
+  inventory = [],
+  onEmote
 }: InterfaceProps) => {
   const [nameInput, setNameInput] = useState('');
   const [chatInput, setChatInput] = useState('');
   const chatEndRef = useRef<HTMLDivElement>(null);
   
   const [isBackpackOpen, setIsBackpackOpen] = useState(false);
+
+  // Check for Jetpack item
+  const hasJetpack = inventory.some(i => i.id === 'item-2');
 
   // Auto-scroll chat
   useEffect(() => {
@@ -56,6 +61,10 @@ export const Interface = ({
         onSendMessage(chatInput);
         setChatInput('');
     }
+  };
+
+  const handleEmote = (emote: string) => {
+      if (onEmote) onEmote(emote);
   };
 
   if (!isJoined) {
@@ -105,7 +114,7 @@ export const Interface = ({
             ZLY_MEETING_V3
             </h1>
             <p className="text-xs text-white/50 mt-1 uppercase tracking-widest">
-            当前用户: {currentPlayerName}
+            User: {currentPlayerName}
             </p>
         </div>
 
@@ -124,6 +133,37 @@ export const Interface = ({
       {/* Render Backpack */}
       <div className="pointer-events-auto">
           <Backpack items={inventory} isOpen={isBackpackOpen} onClose={() => setIsBackpackOpen(false)} />
+      </div>
+
+      {/* Center Bottom - Action Bar */}
+      <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex items-center gap-2 pointer-events-auto bg-[#111]/90 p-2 rounded-full border border-white/10 backdrop-blur">
+          <button 
+            onClick={() => handleEmote('Dance')}
+            className="w-10 h-10 rounded-full bg-white/5 hover:bg-[#00ffcc] hover:text-black text-white flex items-center justify-center transition-all border border-white/10"
+            title="Dance"
+          >
+              <Music size={18} />
+          </button>
+          <button 
+            onClick={() => handleEmote('Wave')}
+            className="w-10 h-10 rounded-full bg-white/5 hover:bg-[#00ffcc] hover:text-black text-white flex items-center justify-center transition-all border border-white/10"
+            title="Wave"
+          >
+              <Hand size={18} />
+          </button>
+          
+          {/* Divider */}
+          <div className="w-px h-6 bg-white/20 mx-1"></div>
+          
+          {/* Jetpack Status */}
+          <div className={`flex flex-col items-center px-3 ${hasJetpack ? 'text-[#00ffcc]' : 'text-white/30'}`}>
+              <span className="text-[9px] font-bold uppercase tracking-widest">JETPACK</span>
+              <div className="flex gap-1 mt-1">
+                  <div className={`w-2 h-2 rounded-full ${hasJetpack ? 'bg-[#00ffcc] animate-pulse' : 'bg-white/20'}`} />
+                  <div className={`w-2 h-2 rounded-full ${hasJetpack ? 'bg-[#00ffcc] animate-pulse delay-75' : 'bg-white/20'}`} />
+                  <div className={`w-2 h-2 rounded-full ${hasJetpack ? 'bg-[#00ffcc] animate-pulse delay-150' : 'bg-white/20'}`} />
+              </div>
+          </div>
       </div>
 
       <div className="flex items-end justify-between w-full gap-8">

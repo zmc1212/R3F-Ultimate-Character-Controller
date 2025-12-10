@@ -8,7 +8,7 @@ export enum Controls {
   run = 'run',
 }
 
-export type AnimationState = 'idle' | 'walk' | 'run' | 'jump' | 'land' | 'Sitting' | 'RunJump' | 'Falling' | 'OpenDoor' | 'PickingUp';
+export type AnimationState = 'idle' | 'walk' | 'run' | 'jump' | 'land' | 'Sitting' | 'RunJump' | 'Falling' | 'OpenDoor' | 'PickingUp' | 'Flying' | 'Dance' | 'Wave';
 
 export type ControlMode = 'direct' | 'pointToClick';
 

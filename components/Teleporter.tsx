@@ -58,10 +58,10 @@ export const Teleporter: React.FC<TeleporterProps> = ({
             {/* Visuals */}
             <group position={[0, 1, 0]}>
                 {/* Rotating Rings */}
-                <Torus ref={ringRef1} args={[1.2, 0.05, 16, 100]} rotation={[Math.PI / 2, 0, 0]}>
+                <Torus ref={ringRef1} args={[1.2, 0.05, 16, 100]} rotation={[Math.PI / 2, 0, 0]} position={[0, 0.4, 0]}>
                     <meshStandardMaterial color={color} emissive={color} emissiveIntensity={2} toneMapped={false} />
                 </Torus>
-                <Torus ref={ringRef2} args={[1.0, 0.05, 16, 100]} rotation={[0, Math.PI / 2, 0]}>
+                <Torus ref={ringRef2} args={[1.0, 0.05, 16, 100]} rotation={[0, Math.PI / 2, 0]} position={[0, 0.4, 0]}>
                      <meshStandardMaterial color="#ffffff" emissive="#ffffff" emissiveIntensity={1} toneMapped={false} />
                 </Torus>
                 

@@ -26,6 +26,9 @@ const App: React.FC = () => {
   // Stores { position: Vector3, rotation: number }
   const playerPosRef = useRef({ position: new THREE.Vector3(), rotation: 0 });
 
+  // Emote State
+  const [currentEmote, setCurrentEmote] = useState<string | null>(null);
+
   // Keyboard map
   const map = useMemo(
     () => [
@@ -125,7 +128,10 @@ const App: React.FC = () => {
                     players={players}
                     playerName={playerName}
                     playerPosRef={playerPosRef}
+                    inventory={inventory}
                     setInventory={setInventory as any}
+                    emote={currentEmote}
+                    setEmote={setCurrentEmote}
                   />
               )}
             </Suspense>
@@ -140,6 +146,7 @@ const App: React.FC = () => {
             onSendMessage={handleSendMessage}
             currentPlayerName={playerName}
             inventory={inventory}
+            onEmote={(emote) => setCurrentEmote(emote)}
           />
 
           {isJoined && (

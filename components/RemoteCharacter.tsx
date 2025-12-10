@@ -1,11 +1,10 @@
-
 import React, { useEffect, useRef, useMemo } from 'react';
 import * as THREE from 'three';
 import { useFrame } from '@react-three/fiber';
 import { useAnimations, useGLTF, Html } from '@react-three/drei';
 import { SkeletonUtils } from 'three-stdlib';
 
-const MODEL_URL = "/models/fmale.glb";
+const MODEL_URL = "/models/ch42.gltf";
 
 interface RemoteCharacterProps {
   position: [number, number, number];
@@ -24,10 +23,8 @@ export const RemoteCharacter: React.FC<RemoteCharacterProps> = ({
   const { scene, animations } = useGLTF(MODEL_URL);
   
   // Create a unique clone of the character for this instance using SkeletonUtils.
-  // This is required for SkinnedMeshes to function correctly when cloned.
   const clone = useMemo(() => SkeletonUtils.clone(scene), [scene]);
   
-  // Bind animations to the group. The mixer will find the bones inside the clone.
   const { actions } = useAnimations(animations, group);
 
   // Target values for smooth interpolation
@@ -42,46 +39,34 @@ export const RemoteCharacter: React.FC<RemoteCharacterProps> = ({
 
   // Handle Animations
   useEffect(() => {
-    const animName = 
-      animation === 'Idle' ? 'Idle' :
-      animation === 'Walking' ? 'Walking' :
-      animation === 'Run' ? 'Run' : 
-      animation === 'Jump' ? 'Jump' : 
-      animation === 'RunJump' ? 'RunJump' :
-      animation === 'land' ? 'land' : 
-      (animation === 'Falling' || animation === 'Fall') ? 'Falling' :
-      (animation === 'Sitting' || animation === 'Sit') ? 'Sitting' : 'Idle';
+    // Direct assignment as requested. 
+    // Logic is handled by the sender (Character.tsx) and fallback is handled below if clip is missing.
+    const animName = animation;
 
-    // Fallback logic
+    // Fallback logic: If the specific animation clip doesn't exist on this model, default to Idle.
     let action = actions[animName] || actions['Idle'];
     
-    // Safety check for RunJump
+    // Specific safety checks for animation aliases if needed
     if (animName === 'RunJump' && !actions['RunJump']) {
         action = actions['Jump'] || actions['Idle'];
     }
     
-    // Safety check for Sitting (Try Sit as alias)
-    if (animName === 'Sitting' && !actions['Sitting']) {
-        if (actions['Sit']) action = actions['Sit'];
-        else action = actions['Idle'];
-    }
-
-    // Safety check for Falling
-    if (animName === 'Falling' && !actions['Falling']) {
-         // If no Falling, fallback to Jump or Idle
-         if (actions['Fall']) action = actions['Fall'];
-         else action = actions['Jump'] || actions['Idle'];
+    // Check for common variations if direct match fails, purely for robustness
+    if (!action) {
+        if (animName === 'Sitting' && actions['Sit']) action = actions['Sit'];
+        if (animName === 'Falling' && actions['Fall']) action = actions['Fall'];
     }
     
     if (action) {
        // Smooth transitions
        action.reset().fadeIn(0.2).play();
        
-       if (animName === 'Jump' || animName === 'RunJump' || animName === 'land') {
+       // Handle One-Shot animations
+       if (animName === 'Jump' || animName === 'RunJump' || animName === 'land' || animName === 'Wave' || animName === 'PickingUp' || animName === 'OpenDoor') {
          action.setLoop(THREE.LoopOnce, 1);
          action.clampWhenFinished = true;
          if (animName === 'RunJump') {
-             action.timeScale = 0.6; // Match local slowdown
+             action.timeScale = 0.6;
          }
        } else {
          action.timeScale = 1;
@@ -101,7 +86,6 @@ export const RemoteCharacter: React.FC<RemoteCharacterProps> = ({
 
     // Smoothly interpolate rotation
     let angleDiff = targetRotation.current - group.current.rotation.y;
-    // Normalize angle to -PI to PI
     while (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
     while (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
     
@@ -110,8 +94,29 @@ export const RemoteCharacter: React.FC<RemoteCharacterProps> = ({
 
   return (
     <group ref={group} dispose={null} scale={1}>
-       {/* Render the manually cloned scene */}
        <primitive object={clone} />
+       
+       {/* Jetpack Visual for Remote Players if flying */}
+       {animation === 'Flying' && (
+           <group position={[0, 1.4, -0.25]}>
+               <mesh>
+                   <boxGeometry args={[0.4, 0.5, 0.2]} />
+                   <meshStandardMaterial color="#444" />
+               </mesh>
+               <group position={[-0.25, -0.6, 0]} rotation={[Math.PI, 0, 0]}>
+                   <mesh>
+                       <coneGeometry args={[0.1, 0.6, 8]} />
+                       <meshBasicMaterial color="#00ffcc" transparent opacity={0.6} />
+                   </mesh>
+               </group>
+               <group position={[0.25, -0.6, 0]} rotation={[Math.PI, 0, 0]}>
+                   <mesh>
+                       <coneGeometry args={[0.1, 0.6, 8]} />
+                       <meshBasicMaterial color="#00ffcc" transparent opacity={0.6} />
+                   </mesh>
+               </group>
+           </group>
+       )}
        
        {/* Name Tag */}
        <Html position={[0, 2.2, 0]} center>
