@@ -1,3 +1,4 @@
+
 import React, { useEffect, useRef, useMemo } from 'react';
 import * as THREE from 'three';
 import { useFrame } from '@react-three/fiber';
@@ -39,30 +40,31 @@ export const RemoteCharacter: React.FC<RemoteCharacterProps> = ({
 
   // Handle Animations
   useEffect(() => {
-    // Direct assignment as requested. 
-    // Logic is handled by the sender (Character.tsx) and fallback is handled below if clip is missing.
     const animName = animation;
 
-    // Fallback logic: If the specific animation clip doesn't exist on this model, default to Idle.
+    // Fallback logic
     let action = actions[animName] || actions['Idle'];
     
-    // Specific safety checks for animation aliases if needed
-    if (animName === 'RunJump' && !actions['RunJump']) {
-        action = actions['Jump'] || actions['Idle'];
-    }
-    
-    // Check for common variations if direct match fails, purely for robustness
+    // Safety aliases
     if (!action) {
         if (animName === 'Sitting' && actions['Sit']) action = actions['Sit'];
         if (animName === 'Falling' && actions['Fall']) action = actions['Fall'];
+        if (animName === 'RunJump' && actions['Jump']) action = actions['Jump'];
+        if (animName === 'Flying' && actions['Jump']) action = actions['Jump']; // Fallback for flying
     }
     
     if (action) {
-       // Smooth transitions
        action.reset().fadeIn(0.2).play();
        
-       // Handle One-Shot animations
-       if (animName === 'Jump' || animName === 'RunJump' || animName === 'land' || animName === 'Wave' || animName === 'PickingUp' || animName === 'OpenDoor') {
+       const isOneShot = 
+         animName === 'Jump' || 
+         animName === 'RunJump' || 
+         animName === 'land' || 
+         animName === 'Wave' || 
+         animName === 'PickingUp' || 
+         animName === 'OpenDoor';
+
+       if (isOneShot) {
          action.setLoop(THREE.LoopOnce, 1);
          action.clampWhenFinished = true;
          if (animName === 'RunJump') {
@@ -90,6 +92,11 @@ export const RemoteCharacter: React.FC<RemoteCharacterProps> = ({
     while (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
     
     group.current.rotation.y += angleDiff * 10 * delta;
+
+    // Procedural Dance Rotation (Spin) if clip is missing or just for effect
+    if (animation === 'Dance') {
+        group.current.rotation.y += delta * 5;
+    }
   });
 
   return (

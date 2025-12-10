@@ -230,16 +230,18 @@ export const Character: React.FC<CharacterProps> = ({
     const rayOrigin = { x: currentPos.x, y: currentPos.y + 0.5, z: currentPos.z };
     const rayDir = { x: 0, y: -1, z: 0 };
     let groundDistance = 100;
-    if (rapier && world) {
+    if (rapier && world && rigidBody.current) {
       const ray = new rapier.Ray(rayOrigin, rayDir);
-      const hit = world.castRay(ray, 2.5, false); // Ignore self
+      // Explicitly exclude the character's rigid body to prevent self-detection
+      // castRay(ray, maxToi, solid, groups, excludeCollider, excludeRigidBody)
+      const hit = world.castRay(ray, 2.5, true, 0xffffffff, null, rigidBody.current); 
       if (hit) groundDistance = hit.timeOfImpact;
     }
 
     if (currentVelYRef.current > 1.0) { 
       isOnFloor.current = false;
     } else {
-      // Stricter threshold (0.52 means 2cm tolerance) to keep 'Falling' active until impact
+      // Threshold 0.52 (2cm from feet)
       isOnFloor.current = groundDistance < 0.52;
     }
 
@@ -371,7 +373,7 @@ export const Character: React.FC<CharacterProps> = ({
       rigidBody.current.setLinvel({ x: 0, y: 0, z: 0 }, true);
       rigidBody.current.setAngvel({ x: 0, y: 0, z: 0 }, true);
       rigidBody.current.setTranslation(sitPose.position, true);
-      // ... rotation interp ...
+      
       let angleDiff = sitPose.rotation - currentRotation.current;
       while (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
       while (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
@@ -383,6 +385,7 @@ export const Character: React.FC<CharacterProps> = ({
     const currentHorizontalSpeed = Math.sqrt(linvel.x * linvel.x + linvel.z * linvel.z);
     let finalX = moveX;
     let finalZ = moveZ;
+    // Momentum preservation (for speed pads etc)
     if (currentHorizontalSpeed > runSpeed + 2.0) {
         const decay = 0.05; 
         finalX = THREE.MathUtils.lerp(linvel.x, moveX, decay);
