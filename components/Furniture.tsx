@@ -75,7 +75,7 @@ export const Chair: React.FC<ChairProps> = ({ position, rotation = [0, 0, 0], on
                  <Html position={[0, 1.5, 0]} center zIndexRange={[100, 0]}>
                      <div className="flex flex-col items-center pointer-events-none">
                         <div className="bg-black/90 border border-[#00ffcc] text-[#00ffcc] text-[10px] px-2 py-1 uppercase tracking-widest flex items-center gap-2 shadow-[0_0_10px_#00ffcc]">
-                            <Armchair size={12} /> Interact
+                            <Armchair size={12} /> 坐下
                         </div>
                         <div className="w-0 h-0 border-l-[4px] border-l-transparent border-r-[4px] border-r-transparent border-t-[6px] border-t-[#00ffcc]"></div>
                      </div>

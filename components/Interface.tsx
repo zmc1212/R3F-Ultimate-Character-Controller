@@ -1,20 +1,9 @@
-
 import React, { useState, useRef, useEffect } from 'react';
 import { ControlMode, ChatMessage, InventoryItem } from '../types';
 import { MousePointer2, Gamepad2, Send, Power, Terminal, Backpack as BackpackIcon, Music, Hand } from 'lucide-react';
 import { Backpack } from './Backpack';
 
-interface InterfaceProps {
-  controlMode: ControlMode;
-  setControlMode: (mode: ControlMode) => void;
-  isJoined: boolean;
-  onJoin: (name: string) => void;
-  chatMessages: ChatMessage[];
-  onSendMessage: (text: string) => void;
-  currentPlayerName: string;
-  inventory?: InventoryItem[]; 
-  onEmote?: (emote: string | null) => void;
-}
+// ... interface props and Kbd component ...
 
 // Helper component for keyboard keys
 const Kbd = ({ children, className = '' }: { children: React.ReactNode; className?: string }) => (
@@ -34,16 +23,14 @@ export const Interface = ({
   inventory = [],
   onEmote
 }: InterfaceProps) => {
+  // ... state logic ...
   const [nameInput, setNameInput] = useState('');
   const [chatInput, setChatInput] = useState('');
   const chatEndRef = useRef<HTMLDivElement>(null);
   
   const [isBackpackOpen, setIsBackpackOpen] = useState(false);
-
-  // Check for Jetpack item
   const hasJetpack = inventory.some(i => i.id === 'item-2');
 
-  // Auto-scroll chat
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [chatMessages]);
@@ -73,16 +60,16 @@ export const Interface = ({
             <div className="bg-[#111] border border-[#00ffcc] p-8 max-w-md w-full shadow-[0_0_20px_rgba(0,255,204,0.2)] clip-path-polygon">
                 <div className="flex items-center gap-3 mb-6 text-[#00ffcc]">
                     <Terminal size={32} />
-                    <h1 className="text-2xl font-bold tracking-widest uppercase">System Login</h1>
+                    <h1 className="text-2xl font-bold tracking-widest uppercase">系统登录</h1>
                 </div>
                 <form onSubmit={submitJoin} className="flex flex-col gap-4">
                     <div className="relative">
-                        <label className="text-xs text-[#00ffcc]/70 uppercase tracking-widest mb-1 block">Identity_String</label>
+                        <label className="text-xs text-[#00ffcc]/70 uppercase tracking-widest mb-1 block">身份识别码</label>
                         <input 
                             type="text" 
                             value={nameInput}
                             onChange={(e) => setNameInput(e.target.value)}
-                            placeholder="ENTER USERNAME..."
+                            placeholder="输入用户名..."
                             maxLength={12}
                             className="w-full bg-[#050505] border-2 border-[#333] focus:border-[#00ffcc] text-white p-3 font-mono outline-none transition-colors placeholder:text-[#333]"
                             autoFocus
@@ -93,12 +80,12 @@ export const Interface = ({
                         disabled={!nameInput.trim()}
                         className="bg-[#00ffcc] text-black font-bold py-3 uppercase tracking-widest hover:bg-[#00ffcc]/80 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2"
                     >
-                        <Power size={18} /> Initialize
+                        <Power size={18} /> 初始化
                     </button>
                 </form>
                 <div className="mt-6 text-xs text-[#444] font-mono border-t border-[#222] pt-4">
-                    {'>'} CONNECTING TO NEURAL NET...<br/>
-                    {'>'} WAITING FOR INPUT...
+                    {'>'} 连接神经网络...<br/>
+                    {'>'} 等待输入...
                 </div>
             </div>
         </div>
@@ -111,10 +98,10 @@ export const Interface = ({
       <div className="flex gap-10 items-start">
         <div className="bg-[#111]/80 backdrop-blur border-l-4 border-[#00ffcc] p-4 text-white">
             <h1 className="text-2xl font-bold leading-none tracking-tighter text-[#00ffcc]">
-            ZLY_MEETING_V3
+            虚拟会议系统_V3
             </h1>
             <p className="text-xs text-white/50 mt-1 uppercase tracking-widest">
-            User: {currentPlayerName}
+            用户: {currentPlayerName}
             </p>
         </div>
 
@@ -157,7 +144,7 @@ export const Interface = ({
           
           {/* Jetpack Status */}
           <div className={`flex flex-col items-center px-3 ${hasJetpack ? 'text-[#00ffcc]' : 'text-white/30'}`}>
-              <span className="text-[9px] font-bold uppercase tracking-widest">JETPACK</span>
+              <span className="text-[9px] font-bold uppercase tracking-widest">喷气背包</span>
               <div className="flex gap-1 mt-1">
                   <div className={`w-2 h-2 rounded-full ${hasJetpack ? 'bg-[#00ffcc] animate-pulse' : 'bg-white/20'}`} />
                   <div className={`w-2 h-2 rounded-full ${hasJetpack ? 'bg-[#00ffcc] animate-pulse delay-75' : 'bg-white/20'}`} />
@@ -180,7 +167,7 @@ export const Interface = ({
                   : 'text-white/50 hover:text-white hover:bg-white/5'
               }`}
             >
-              <Gamepad2 size={14} /> Direct
+              <Gamepad2 size={14} /> 直接控制
             </button>
             <button
               onClick={() => setControlMode('pointToClick')}
@@ -190,35 +177,35 @@ export const Interface = ({
                   : 'text-white/50 hover:text-white hover:bg-white/5'
               }`}
             >
-              <MousePointer2 size={14} /> Auto_Nav
+              <MousePointer2 size={14} /> 自动导航
             </button>
           </div>
 
           {/* Key Hints */}
           <div className="bg-[#111]/80 backdrop-blur border border-white/10 p-4 text-white/80 w-64">
-            <h3 className="text-[10px] font-bold uppercase tracking-widest text-[#00ffcc] mb-3 border-b border-white/10 pb-2">Control_Schematic</h3>
+            <h3 className="text-[10px] font-bold uppercase tracking-widest text-[#00ffcc] mb-3 border-b border-white/10 pb-2">操作指南</h3>
             
             {controlMode === 'direct' ? (
               <div className="grid grid-cols-2 gap-2 text-xs">
-                 <div className="flex items-center gap-2"><Kbd>W</Kbd> FWD</div>
-                 <div className="flex items-center gap-2"><Kbd>S</Kbd> BWD</div>
-                 <div className="flex items-center gap-2"><Kbd>A</Kbd> LEFT</div>
-                 <div className="flex items-center gap-2"><Kbd>D</Kbd> RIGHT</div>
-                 <div className="col-span-2 flex items-center gap-2 mt-2"><Kbd className="w-12">SPACE</Kbd> JUMP_THRUST</div>
-                 <div className="col-span-2 flex items-center gap-2"><Kbd className="w-12">SHIFT</Kbd> OVERDRIVE</div>
-                 <div className="col-span-2 flex items-center gap-2 mt-1 text-[#00ffcc]"><Kbd className="w-12 border-[#00ffcc]">E</Kbd> INTERACT</div>
+                 <div className="flex items-center gap-2"><Kbd>W</Kbd> 前</div>
+                 <div className="flex items-center gap-2"><Kbd>S</Kbd> 后</div>
+                 <div className="flex items-center gap-2"><Kbd>A</Kbd> 左</div>
+                 <div className="flex items-center gap-2"><Kbd>D</Kbd> 右</div>
+                 <div className="col-span-2 flex items-center gap-2 mt-2"><Kbd className="w-12">SPACE</Kbd> 跳跃 / 飞行</div>
+                 <div className="col-span-2 flex items-center gap-2"><Kbd className="w-12">SHIFT</Kbd> 加速 / 奔跑</div>
+                 <div className="col-span-2 flex items-center gap-2 mt-1 text-[#00ffcc]"><Kbd className="w-12 border-[#00ffcc]">E</Kbd> 交互</div>
               </div>
             ) : (
               <div className="text-xs space-y-2">
                  <div className="flex items-center gap-2 text-[#00ffcc]">
-                    <MousePointer2 size={14} /> NAVIGATE
+                    <MousePointer2 size={14} /> 导航
                  </div>
-                 <p className="text-white/50 text-[10px]">CLICK TERRAIN TO DESIGNATE WAYPOINT.</p>
+                 <p className="text-white/50 text-[10px]">点击地面设定路径点</p>
               </div>
             )}
             
             <div className="mt-3 pt-3 border-t border-white/10 text-[10px] text-white/40 uppercase">
-                R-CLICK + DRAG TO ROTATE CAM
+                右键拖动旋转视角
             </div>
           </div>
         </div>
@@ -226,13 +213,13 @@ export const Interface = ({
         {/* Right: Chat Terminal */}
         <div className="bg-[#111]/90 backdrop-blur border border-white/10 w-80 h-64 flex flex-col pointer-events-auto shadow-2xl">
             <div className="bg-[#222] px-3 py-1 text-[10px] text-white/50 uppercase tracking-widest border-b border-white/10 flex justify-between">
-                <span>COMMS_CHANNEL_01</span>
-                <span className="text-[#00ffcc] animate-pulse">● LIVE</span>
+                <span>公共频道_01</span>
+                <span className="text-[#00ffcc] animate-pulse">● 在线</span>
             </div>
             
             <div className="flex-1 overflow-y-auto p-3 space-y-2 font-mono text-xs">
                 {chatMessages.length === 0 && (
-                    <div className="text-white/20 italic text-center mt-10">NO SIGNAL...</div>
+                    <div className="text-white/20 italic text-center mt-10">无信号...</div>
                 )}
                 {chatMessages.map((msg) => (
                     <div key={msg.id} className="break-words">
@@ -248,7 +235,7 @@ export const Interface = ({
             <form onSubmit={submitChat} className="border-t border-white/10 p-2 flex gap-2 bg-[#000]">
                 <input 
                     className="flex-1 bg-transparent border-none outline-none text-white text-xs placeholder:text-white/20 font-mono"
-                    placeholder="TRANSMIT MESSAGE..."
+                    placeholder="发送消息..."
                     value={chatInput}
                     onChange={(e) => setChatInput(e.target.value)}
                 />

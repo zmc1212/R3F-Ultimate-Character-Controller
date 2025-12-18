@@ -1,3 +1,4 @@
+
 import React, { useState, useRef, useEffect } from 'react';
 import { Physics, RigidBody } from '@react-three/rapier';
 import { useFrame } from '@react-three/fiber';
@@ -63,11 +64,10 @@ const TargetMarker = ({ position }: { position: THREE.Vector3 | null }) => {
 
 // Initial items
 const INITIAL_ITEMS: InventoryItem[] = [
-    { id: 'item-1', name: 'Data Cube', icon: '🧊', description: 'Contains encrypted sector data.' },
-    { id: 'item-2', name: 'Plasma Cell', icon: '🔋', description: 'High energy power source.' },
-    { id: 'item-3', name: 'Access Key', icon: '🔑', description: 'Level 5 security clearance.' }
+    { id: 'item-1', name: '数据方块', icon: '🧊', description: '包含加密的扇区数据' },
+    { id: 'item-2', name: '等离子电池', icon: '🔋', description: '高能动力源 (喷气背包燃料)' },
+    { id: 'item-3', name: '访问密钥', icon: '🔑', description: '5级安全权限' }
 ];
-
 export const Experience: React.FC<ExperienceProps> = ({ 
     controlMode, socket, players, playerName, playerPosRef, inventory, setInventory, emote, setEmote 
 }) => {
@@ -269,13 +269,13 @@ export const Experience: React.FC<ExperienceProps> = ({
         <Teleporter 
             position={[10, 0, 10]} 
             targetPosition={[20, 9, 0]} 
-            label="TO DECK" 
+            label="前往高台" 
             color="#00ffcc" 
         />
         <Teleporter 
             position={[25, 8.5, 0]} 
             targetPosition={[8, 2, 10]} 
-            label="TO GROUND" 
+            label="前往地面" 
             color="#ff00ff" 
         />
 
@@ -327,7 +327,7 @@ export const Experience: React.FC<ExperienceProps> = ({
         )}
 
         {/* Mini Games */}
-        <CyberBall position={[40, 0, 0]} isPushing={isPushing} onPushToggle={handlePushToggle} />
+        <CyberBall position={[40, 0, 0]} isPushing={isPushing} onPushToggle={handlePushToggle} playerPosRef={playerPosRef} />
         <ZeroGZone position={[-30, 0, 0]} />
 
       </Physics>

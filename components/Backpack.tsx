@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { InventoryItem } from '../types';
 import { Backpack as BackpackIcon, X } from 'lucide-react';
@@ -13,11 +12,11 @@ export const Backpack: React.FC<BackpackProps> = ({ items, isOpen, onClose }) =>
     if (!isOpen) return null;
 
     return (
-        <div className="absolute left-4 top-40 w-64 bg-black/90 border border-[#00ffcc] text-white p-4 clip-path-polygon backdrop-blur-md z-40 shadow-[0_0_20px_rgba(0,255,204,0.1)] font-mono">
+        <div className="absolute right-4 top-20 w-64 bg-black/90 border border-[#00ffcc] text-white p-4 clip-path-polygon backdrop-blur-md z-40 shadow-[0_0_20px_rgba(0,255,204,0.1)] font-mono">
             <div className="flex justify-between items-center mb-4 border-b border-[#00ffcc]/30 pb-2">
                 <div className="flex items-center gap-2 text-[#00ffcc]">
                     <BackpackIcon size={18} />
-                    <h2 className="font-bold tracking-widest text-sm uppercase">Inventory</h2>
+                    <h2 className="font-bold tracking-widest text-sm uppercase">物品栏</h2>
                 </div>
                 <button onClick={onClose} className="text-white/50 hover:text-white transition-colors">
                     <X size={16} />
@@ -26,7 +25,7 @@ export const Backpack: React.FC<BackpackProps> = ({ items, isOpen, onClose }) =>
 
             {items.length === 0 ? (
                 <div className="text-xs text-white/30 font-mono text-center py-4 italic">
-                    CONTAINER EMPTY...
+                    容器为空...
                 </div>
             ) : (
                 <div className="grid grid-cols-4 gap-2">
@@ -48,7 +47,7 @@ export const Backpack: React.FC<BackpackProps> = ({ items, isOpen, onClose }) =>
             )}
             
             <div className="mt-4 text-[9px] text-[#00ffcc]/50 font-mono uppercase text-right">
-                CAPACITY: {items.length}/8
+                容量: {items.length}/8
             </div>
         </div>
     );

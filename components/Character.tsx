@@ -30,7 +30,7 @@ interface CharacterProps {
 
   // Push
   isPushing?: boolean;
-  onPushFinished?: () => void; // Deprecated but kept for compatibility
+  onPushFinished?: () => void; 
 
   // New Features
   inventory?: InventoryItem[];
@@ -66,13 +66,13 @@ export const Character: React.FC<CharacterProps> = ({
     runSpeed,
     rotationSpeed,
     jumpForce,
-    camSens
+    camSens,
   } = useControls('Character Controls', {
     walkSpeed: { value: 4, min: 1, max: 10 },
     runSpeed: { value: 7, min: 1, max: 15 },
     rotationSpeed: { value: 12, min: 1, max: 20 },
     jumpForce: { value: 6.5, min: 3, max: 10 },
-    camSens: { value: 0.005, min: 0.001, max: 0.01, label: 'Camera Sensitivity' }
+    camSens: { value: 0.005, min: 0.001, max: 0.01, label: 'Camera Sensitivity' },
   });
 
   // Refs
@@ -119,7 +119,7 @@ export const Character: React.FC<CharacterProps> = ({
   const { world, rapier } = useRapier();
   const lastUpdateRef = useRef(0);
 
-  // Check Jetpack Availability (item-2 is "Plasma Cell")
+  // Check Jetpack Availability
   const hasJetpack = inventory.some(i => i.id === 'item-2');
 
   // Camera Event Listeners
@@ -172,7 +172,7 @@ export const Character: React.FC<CharacterProps> = ({
         animName = actions[emote] ? emote : 'Idle';
     }
     
-    // Push fallbacks (Push and PushIdle)
+    // Push fallbacks
     if (animName === 'Push' && !actions['Push']) animName = actions['Interact'] ? 'Interact' : 'Idle';
     if (animName === 'PushIdle' && !actions['PushIdle']) animName = 'Idle';
 
@@ -222,7 +222,7 @@ export const Character: React.FC<CharacterProps> = ({
     return () => {
       if (action) action.fadeOut(0.2);
     };
-  }, [animation, actions, isSitting, isOpeningDoor, isPickingUp, emote]); // isPushing removed from deps as it triggers state via useFrame
+  }, [animation, actions, isSitting, isOpeningDoor, isPickingUp, emote]); 
 
   useFrame((state, delta) => {
     if (!rigidBody.current || !characterGroup.current) return;
@@ -246,7 +246,6 @@ export const Character: React.FC<CharacterProps> = ({
     let groundDistance = 100;
     if (rapier && world && rigidBody.current) {
       const ray = new rapier.Ray(rayOrigin, rayDir);
-      // castRay(ray, maxToi, solid, filterFlags, filterGroups, excludeCollider, excludeRigidBody)
       const hit = world.castRay(
           ray, 
           2.5, 
@@ -261,15 +260,11 @@ export const Character: React.FC<CharacterProps> = ({
 
     // Ground Detection Logic
     if (isPushing) {
-        // FORCE GROUNDED STATE when pushing
-        // This prevents the character from detecting a "Fall" or triggering a "Jump" 
-        // if they slightly climb onto the ball's collider.
         isOnFloor.current = true;
     } else {
         if (currentVelYRef.current > 1.0) { 
           isOnFloor.current = false;
         } else {
-          // Threshold 0.15 matches ray origin height
           isOnFloor.current = groundDistance < 0.15;
         }
     }
@@ -285,7 +280,6 @@ export const Character: React.FC<CharacterProps> = ({
     // --- 2. JETPACK LOGIC ---
     isFlying.current = false;
     if (hasJetpack && !isOnFloor.current && jump) {
-        // Apply upward thrust (adjust for gravity scale if needed)
         currentVelYRef.current += 30 * delta * gravityScale; 
         currentVelYRef.current = Math.min(currentVelYRef.current, 5); 
         isFlying.current = true;
@@ -297,14 +291,12 @@ export const Character: React.FC<CharacterProps> = ({
     let desiredSpeed = 0;
     const isManualMove = forward || backward || left || right;
 
-    // Breaking out of sit
     if (isSitting && isManualMove && onStopSitting) {
         onStopSitting();
     }
 
     if (isManualMove) {
       if (currentNavTarget.current) currentNavTarget.current = null;
-      // When pushing, move at 80% speed (up from 50%) for better responsiveness
       desiredSpeed = isPushing ? (walkSpeed * 0.8) : (run ? runSpeed : walkSpeed);
       
       const camForward = new THREE.Vector3(0, 0, -1).applyAxisAngle(new THREE.Vector3(0, 1, 0), cameraOrbit.current);
@@ -370,18 +362,16 @@ export const Character: React.FC<CharacterProps> = ({
       newState = jumpType.current;
     }
     else if (!isOnFloor.current) {
-      // Keep falling until landed
       if (currentVelYRef.current < -0.1 && !isFlying.current && !isPushing) newState = 'Falling';
       else newState = jumpType.current;
     }
     // Priority 4: Ground Movement
     else {
       if (isPushing) {
-          // If pushing toggle is active
-          if (Math.abs(moveX) > 0.1 || Math.abs(moveZ) > 0.1) {
-              newState = 'Push'; // Walking while pushing
+          if (isManualMove) {
+              newState = 'Push'; 
           } else {
-              newState = 'PushIdle'; // Standing still in push pose
+              newState = 'PushIdle'; 
           }
       } 
       else if (emote && !isManualMove) {
@@ -402,7 +392,6 @@ export const Character: React.FC<CharacterProps> = ({
     if (animation !== newState) setAnimation(newState);
 
     // --- 5. APPLY PHYSICS ---
-    // Handle interactions logic first to ensure lock
     if (isOpeningDoor || isPickingUp) {
         rigidBody.current.setLinvel({ x: 0, y: 0, z: 0 }, true);
         rigidBody.current.setAngvel({ x: 0, y: 0, z: 0 }, true);
@@ -424,17 +413,26 @@ export const Character: React.FC<CharacterProps> = ({
     const currentHorizontalSpeed = Math.sqrt(linvel.x * linvel.x + linvel.z * linvel.z);
     let finalX = moveX;
     let finalZ = moveZ;
-    // Momentum preservation (for speed pads etc)
-    if (currentHorizontalSpeed > runSpeed + 2.0) {
-        const decay = 0.05; 
-        finalX = THREE.MathUtils.lerp(linvel.x, moveX, decay);
-        finalZ = THREE.MathUtils.lerp(linvel.z, moveZ, decay);
-    } 
-    
-    // Prevent climbing on ball: Clamp Y velocity if pushing and moving up
     let finalY = currentVelYRef.current;
-    if (isPushing && finalY > 0.1) {
-         finalY = -2.0; // Force down to prevent climbing
+
+    if (isPushing) {
+        // Prevent climbing: Force slight downward velocity
+        finalY = -0.5; 
+
+        if (!isManualMove) {
+            finalX = THREE.MathUtils.lerp(linvel.x, 0, 0.1);
+            finalZ = THREE.MathUtils.lerp(linvel.z, 0, 0.1);
+        }
+    } else {
+        if (currentHorizontalSpeed > runSpeed + 2.0) {
+            const decay = 0.05; 
+            finalX = THREE.MathUtils.lerp(linvel.x, moveX, decay);
+            finalZ = THREE.MathUtils.lerp(linvel.z, moveZ, decay);
+        }
+        
+        if (isFlying.current) {
+            finalY = currentVelYRef.current; 
+        }
     }
 
     rigidBody.current.setLinvel({ x: finalX, y: finalY, z: finalZ }, true);

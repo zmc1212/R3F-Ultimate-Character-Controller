@@ -129,7 +129,7 @@ export const Door: React.FC<DoorProps> = ({
                     <div className="flex flex-col items-center animate-bounce">
                         <div className="bg-black/80 border border-[#00ffcc] text-[#00ffcc] px-3 py-2 rounded font-mono text-xs flex items-center gap-2 backdrop-blur-md">
                             <Fingerprint size={16} />
-                            <span className="font-bold tracking-widest">PRESS [E] TO OPEN</span>
+                            <span className="font-bold tracking-widest">按 [E] 开启</span>
                         </div>
                         <div className="w-0 h-0 border-l-[6px] border-l-transparent border-r-[6px] border-r-transparent border-t-[8px] border-t-[#00ffcc] mt-1"></div>
                     </div>

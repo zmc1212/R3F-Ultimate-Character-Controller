@@ -381,14 +381,14 @@ export const ConferenceScreen: React.FC<ConferenceScreenProps> = ({ socket, play
             anchorX="center"
             anchorY="middle"
            >
-             CONFERENCE_DISPLAY_01
+             会议显示屏_01
            </Text>
            <Html center position={[0, -0.5, 0]} transform>
               <button 
                 onClick={startSharing}
                 className="bg-[#00ffcc] text-black px-6 py-2 font-mono font-bold uppercase tracking-widest flex items-center gap-2 hover:bg-white transition-colors"
               >
-                <MonitorUp size={18} /> Start Presentation
+                <MonitorUp size={18} /> 开始演示
               </button>
            </Html>
         </group>
@@ -401,13 +401,13 @@ export const ConferenceScreen: React.FC<ConferenceScreenProps> = ({ socket, play
                  <div className="flex flex-col items-center gap-4 bg-black/80 p-4 border border-[#ffcc00]/50 rounded">
                      <div className="flex items-center gap-2 text-[#ffcc00] animate-pulse font-mono font-bold tracking-widest">
                         <SignalHigh size={24} /> 
-                        {connectionStatus === 'connecting' ? 'ESTABLISHING LINK...' : 'WAITING FOR SIGNAL'}
+                        {connectionStatus === 'connecting' ? '建立连接中...' : '等待信号'}
                      </div>
                      <button 
                         onClick={(e) => { e.stopPropagation(); forceReconnect(); }}
                         className="text-xs text-white/50 hover:text-white underline mt-2 flex items-center gap-1"
                      >
-                        <RefreshCw size={10} /> FORCE RECONNECT
+                        <RefreshCw size={10} /> 强制重连
                      </button>
                  </div>
              </Html>
@@ -421,7 +421,7 @@ export const ConferenceScreen: React.FC<ConferenceScreenProps> = ({ socket, play
                  <div className="flex flex-col items-center gap-3 bg-black/80 p-6 border border-[#00ffcc]/50 shadow-[0_0_15px_rgba(0,255,204,0.3)]">
                      <Loader2 size={32} className="text-[#00ffcc] animate-spin" />
                      <div className="text-[#00ffcc] font-mono text-sm tracking-widest animate-pulse">
-                        DECODING DATA STREAM...
+                        解析数据流...
                      </div>
                  </div>
              </Html>
@@ -463,7 +463,7 @@ export const ConferenceScreen: React.FC<ConferenceScreenProps> = ({ socket, play
              <div className="w-full h-full max-w-[90vw] max-h-[90vh] flex flex-col">
                 <div className="flex justify-between items-center mb-4 text-[#00ffcc] font-mono border-b border-[#00ffcc]/30 pb-2 bg-black/50 p-2">
                     <h2 className="text-xl tracking-widest flex items-center gap-2">
-                        <MonitorUp /> {isBroadcaster ? 'BROADCASTING_LIVE' : 'INCOMING_SIGNAL'}
+                        <MonitorUp />  {isBroadcaster ? '正在直播' : '接收信号'}
                     </h2>
                     <button 
                         onClick={() => setIsFullScreen(false)}
