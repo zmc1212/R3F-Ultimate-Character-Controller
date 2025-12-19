@@ -13,10 +13,12 @@ import { SpeedPad } from './SpeedPad';
 import { Door } from './Door';
 import { ItemPickup } from './ItemPickup';
 import { CyberBall, ZeroGZone } from './MiniGames'; 
+import { LaserFence, PhysicsCrates, GravityTerminal } from './InteractiveZones'; // 新增导入
 import { ControlMode, PlayerData, InventoryItem } from '../types';
 import * as THREE from 'three';
 import { Socket } from 'socket.io-client';
-import { Environment, useTexture, Box } from '@react-three/drei';
+// Added Text to @react-three/drei imports to fix JSX errors
+import { Environment, useTexture, Box, Text } from '@react-three/drei';
 
 interface ExperienceProps {
   controlMode: ControlMode;
@@ -68,6 +70,7 @@ const INITIAL_ITEMS: InventoryItem[] = [
     { id: 'item-2', name: '等离子电池', icon: '🔋', description: '高能动力源 (喷气背包燃料)' },
     { id: 'item-3', name: '访问密钥', icon: '🔑', description: '5级安全权限' }
 ];
+
 export const Experience: React.FC<ExperienceProps> = ({ 
     controlMode, socket, players, playerName, playerPosRef, inventory, setInventory, emote, setEmote 
 }) => {
@@ -89,7 +92,9 @@ export const Experience: React.FC<ExperienceProps> = ({
   // Push State
   const [isPushing, setIsPushing] = useState(false);
 
-  // Track pending interaction (waiting for character to walk to chair)
+  // Gravity Modifier
+  const [globalGravityScale, setGlobalGravityScale] = useState(1.0);
+
   const pendingInteraction = useRef<{ type: 'sit', position: THREE.Vector3, rotation: number } | null>(null);
 
   // Load Environment Map
@@ -101,7 +106,6 @@ export const Experience: React.FC<ExperienceProps> = ({
       if (socket && socket.connected) {
           socket.emit('move', data);
       }
-      // Reset emote if character moves
       if (emote && (data.animation === 'Walking' || data.animation === 'Running')) {
           setEmote(null);
       }
@@ -115,8 +119,6 @@ export const Experience: React.FC<ExperienceProps> = ({
     setEmote(null);
     setTargetLocation(point);
     pendingInteraction.current = null;
-    
-    // Auto-disable push mode on floor click
     if (isPushing) setIsPushing(false);
   };
 
@@ -131,7 +133,6 @@ export const Experience: React.FC<ExperienceProps> = ({
 
   const handleTargetReached = () => {
       setTargetLocation(null);
-      
       if (pendingInteraction.current && pendingInteraction.current.type === 'sit') {
           setSitPose({
               position: pendingInteraction.current.position,
@@ -147,11 +148,8 @@ export const Experience: React.FC<ExperienceProps> = ({
       setSitPose(null);
   };
   
-  // Door Logic
   const handleOpenDoorRequest = () => {
-      if (!isDoorOpen) {
-          setIsOpeningDoor(true); 
-      }
+      if (!isDoorOpen) setIsOpeningDoor(true); 
   };
 
   const handleDoorOpened = () => {
@@ -160,7 +158,6 @@ export const Experience: React.FC<ExperienceProps> = ({
       setTimeout(() => setIsDoorOpen(false), 5000);
   };
 
-  // Pickup Logic
   const handlePickup = (item: InventoryItem) => {
       if (!isPickingUp) {
           setPendingPickup(item);
@@ -177,10 +174,7 @@ export const Experience: React.FC<ExperienceProps> = ({
       setIsPickingUp(false);
   };
 
-  // Push Logic (Toggle)
-  const handlePushToggle = () => {
-      setIsPushing(!isPushing);
-  };
+  const handlePushToggle = () => setIsPushing(!isPushing);
 
   return (
     <>
@@ -196,7 +190,7 @@ export const Experience: React.FC<ExperienceProps> = ({
       </directionalLight>
       <ambientLight intensity={0.2} color="#00ffcc" />
 
-      <Physics gravity={[0, -9.81, 0]}>
+      <Physics gravity={[0, -9.81 * globalGravityScale, 0]}>
         
         <Character 
           controlMode={controlMode} 
@@ -215,6 +209,7 @@ export const Experience: React.FC<ExperienceProps> = ({
           isPushing={isPushing} 
           inventory={inventory}
           emote={emote}
+          gravityScale={globalGravityScale}
         />
 
         {players && Object.entries(players).map(([id, p]) => (
@@ -237,26 +232,34 @@ export const Experience: React.FC<ExperienceProps> = ({
             <Chair position={[-3, 0, 1]} rotation={[0, Math.PI - 0.4, 0]} onInteract={handleChairInteract} />
         </group>
 
-        <JumpPad position={[28, 0, 2]} />
+        {/* --- 新增交互区域 --- */}
+        <group position={[-20, 0, 15]}>
+            <LaserFence position={[0, 0, 0]} width={8} />
+            <LaserFence position={[0, 0.5, 5]} width={8} rotation={[0, 0.2, 0]} />
+            <Text position={[0, 5, 2.5]} fontSize={0.8} color="#ff0044">激光挑战区</Text>
+        </group>
+
+        <group position={[-25, 0, -15]}>
+            <PhysicsCrates position={[0, 1, 0]} />
+            <PhysicsCrates position={[1.2, 1, 0.5]} />
+            <PhysicsCrates position={[-0.5, 1, 1.5]} />
+            <PhysicsCrates position={[0.5, 2.5, 0.5]} />
+            <Text position={[0, 4, 1]} fontSize={0.6} color="#00ffcc">动力装卸区</Text>
+        </group>
+
+        <GravityTerminal 
+            position={[5, 0, -15]} 
+            onGravityChange={(scale) => setGlobalGravityScale(scale)} 
+        />
+        {/* --- --- --- */}
+
+        <JumpPad position={[28, 0, -8]} />
         <DiscoFloor position={[20, 0.05, 12]} rows={3} cols={6} />
         
         <group position={[20, 8, 0]}>
              <Box args={[14, 0.5, 6]} receiveShadow>
-                 <meshStandardMaterial color="#222" metalness={0.8} roughness={0.2} transparent opacity={0.9} />
+                 <meshStandardMaterial color="#222" metalness={0.8} roughness={0.4} transparent opacity={0.9} />
              </Box>
-             <Box args={[14, 1, 0.1]} position={[0, 0.75, 3]}>
-                 <meshStandardMaterial color="#00ffcc" transparent opacity={0.2} />
-             </Box>
-             <Box args={[14, 1, 0.1]} position={[0, 0.75, -3]}>
-                 <meshStandardMaterial color="#00ffcc" transparent opacity={0.2} />
-             </Box>
-             <group visible={false}>
-                 <RigidBody type="fixed" colliders="cuboid">
-                     <mesh position={[0, 0, 0]}>
-                        <boxGeometry args={[14, 0.5, 6]} />
-                     </mesh>
-                 </RigidBody>
-             </group>
              {availableItems.find(i => i.id === 'item-3') && (
                  <ItemPickup 
                     item={availableItems.find(i => i.id === 'item-3')!} 
@@ -279,54 +282,22 @@ export const Experience: React.FC<ExperienceProps> = ({
             color="#ff00ff" 
         />
 
-        <group>
-            <SpeedPad position={[-15, 0, 10]} direction={[0, 0, -1]} boostStrength={50} />
-            <SpeedPad position={[-15, 0, 0]} direction={[0, 0, -1]} boostStrength={50} />
-            <SpeedPad position={[-15, 0, -12]} direction={[1, 0, 0]} boostStrength={50} />
-            <SpeedPad position={[-5, 0, -12]} direction={[0, 0, 1]} boostStrength={50} />
-            <SpeedPad position={[-5, 0, 0]} direction={[0, 0, 1]} boostStrength={50} />
-            <SpeedPad position={[-5, 0, 10]} direction={[-1, 0, 0]} boostStrength={50} />
-        </group>
-
         <group position={[-10, 0, 5]}>
              <RigidBody type="fixed">
-                 <mesh position={[-3, 1.5, 0]} receiveShadow>
-                     <boxGeometry args={[4, 3, 0.5]} />
-                     <meshStandardMaterial color="#222" />
-                 </mesh>
-                 <mesh position={[3, 1.5, 0]} receiveShadow>
-                     <boxGeometry args={[4, 3, 0.5]} />
-                     <meshStandardMaterial color="#222" />
-                 </mesh>
-                 <mesh position={[0, 4, 0]} receiveShadow>
-                     <boxGeometry args={[10, 2, 0.5]} />
-                     <meshStandardMaterial color="#222" />
-                 </mesh>
+                 <mesh position={[-3, 1.5, 0]} receiveShadow><boxGeometry args={[4, 3, 0.5]} /><meshStandardMaterial color="#222" /></mesh>
+                 <mesh position={[3, 1.5, 0]} receiveShadow><boxGeometry args={[4, 3, 0.5]} /><meshStandardMaterial color="#222" /></mesh>
+                 <mesh position={[0, 4, 0]} receiveShadow><boxGeometry args={[10, 2, 0.5]} /><meshStandardMaterial color="#222" /></mesh>
              </RigidBody>
-             <Door 
-                 position={[0, 0, 0]} 
-                 isOpen={isDoorOpen} 
-                 onOpenRequest={handleOpenDoorRequest} 
-             />
+             <Door position={[0, 0, 0]} isOpen={isDoorOpen} onOpenRequest={handleOpenDoorRequest} />
         </group>
 
-        {/* Scattered Items */}
         {availableItems.find(i => i.id === 'item-1') && (
-            <ItemPickup 
-               item={availableItems.find(i => i.id === 'item-1')!} 
-               position={[-8, 0.5, 8]} 
-               onPickup={handlePickup} 
-            />
+            <ItemPickup item={availableItems.find(i => i.id === 'item-1')!} position={[-8, 0.5, 8]} onPickup={handlePickup} />
         )}
         {availableItems.find(i => i.id === 'item-2') && (
-            <ItemPickup 
-               item={availableItems.find(i => i.id === 'item-2')!} 
-               position={[24, 0.5, 5]} 
-               onPickup={handlePickup} 
-            />
+            <ItemPickup item={availableItems.find(i => i.id === 'item-2')!} position={[24, 0.5, 5]} onPickup={handlePickup} />
         )}
 
-        {/* Mini Games */}
         <CyberBall position={[40, 0, 0]} isPushing={isPushing} onPushToggle={handlePushToggle} playerPosRef={playerPosRef} />
         <ZeroGZone position={[-30, 0, 0]} />
 
