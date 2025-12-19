@@ -15,6 +15,7 @@ const App: React.FC = () => {
   // App State
   const [playerName, setPlayerName] = useState<string>('');
   const [isJoined, setIsJoined] = useState(false);
+  const [isRoaming, setIsRoaming] = useState(false); // 新增：相机漫游状态
   const [inventory, setInventory] = useState<InventoryItem[]>([]);
   
   // Multiplayer State
@@ -22,8 +23,7 @@ const App: React.FC = () => {
   const [players, setPlayers] = useState<Record<string, PlayerData>>({});
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
 
-  // Shared Ref for Player Position & Rotation (Syncs Character -> Minimap)
-  // Stores { position: Vector3, rotation: number }
+  // Shared Ref for Player Position & Rotation
   const playerPosRef = useRef({ position: new THREE.Vector3(), rotation: 0 });
 
   // Emote State
@@ -42,12 +42,11 @@ const App: React.FC = () => {
     []
   );
 
-  // Initialize Socket connection
   useEffect(() => {
     const newSocket = io('http://localhost:3000', {
         reconnectionAttempts: 5,
         transports: ['websocket'],
-        autoConnect: false // Wait until user joins
+        autoConnect: false 
     } as any);
 
     (newSocket as any).on('connect', () => {
@@ -82,7 +81,7 @@ const App: React.FC = () => {
     });
 
     (newSocket as any).on('chat', (message: ChatMessage) => {
-        setChatMessages(prev => [...prev.slice(-49), message]); // Keep last 50
+        setChatMessages(prev => [...prev.slice(-49), message]);
     });
 
     setSocket(newSocket);
@@ -98,10 +97,11 @@ const App: React.FC = () => {
           socket.emit('join', name);
           setPlayerName(name);
           setIsJoined(true);
+          setIsRoaming(true); // 进入游戏开始漫游
       } else if (name.trim()) {
-          // Allow offline play
           setPlayerName(name);
           setIsJoined(true);
+          setIsRoaming(true); // 离线模式也漫游
       }
   };
 
@@ -117,7 +117,7 @@ const App: React.FC = () => {
         <div className="w-full h-full relative" onContextMenu={(e) => e.preventDefault()}>
           <Canvas
             shadows
-            camera={{ position: [0, 5, 8], fov: 45 }}
+            camera={{ position: [0, 20, 20], fov: 45 }}
             className="w-full h-full bg-[#111]"
           >
             <Suspense fallback={null}>
@@ -132,6 +132,8 @@ const App: React.FC = () => {
                     setInventory={setInventory as any}
                     emote={currentEmote}
                     setEmote={setCurrentEmote}
+                    isRoaming={isRoaming}
+                    setIsRoaming={setIsRoaming}
                   />
               )}
             </Suspense>
@@ -147,9 +149,11 @@ const App: React.FC = () => {
             currentPlayerName={playerName}
             inventory={inventory}
             onEmote={(emote) => setCurrentEmote(emote)}
+            isRoaming={isRoaming}
+            onSkipRoam={() => setIsRoaming(false)}
           />
 
-          {isJoined && (
+          {isJoined && !isRoaming && (
             <Minimap playerPosRef={playerPosRef} />
           )}
         </div>
