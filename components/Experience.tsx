@@ -13,11 +13,10 @@ import { SpeedPad } from './SpeedPad';
 import { Door } from './Door';
 import { ItemPickup } from './ItemPickup';
 import { CyberBall, ZeroGZone } from './MiniGames'; 
-import { LaserFence, PhysicsCrates, GravityTerminal } from './InteractiveZones'; // 新增导入
+import { LaserFence, PhysicsCrates, GravityTerminal } from './InteractiveZones';
 import { ControlMode, PlayerData, InventoryItem } from '../types';
 import * as THREE from 'three';
 import { Socket } from 'socket.io-client';
-// Added Text to @react-three/drei imports to fix JSX errors
 import { Environment, useTexture, Box, Text } from '@react-three/drei';
 
 interface ExperienceProps {
@@ -64,7 +63,6 @@ const TargetMarker = ({ position }: { position: THREE.Vector3 | null }) => {
     );
 };
 
-// Initial items
 const INITIAL_ITEMS: InventoryItem[] = [
     { id: 'item-1', name: '数据方块', icon: '🧊', description: '包含加密的扇区数据' },
     { id: 'item-2', name: '等离子电池', icon: '🔋', description: '高能动力源 (喷气背包燃料)' },
@@ -76,31 +74,23 @@ export const Experience: React.FC<ExperienceProps> = ({
 }) => {
   const [targetLocation, setTargetLocation] = useState<THREE.Vector3 | null>(null);
   
-  // Interaction State
   const [isSitting, setIsSitting] = useState(false);
   const [sitPose, setSitPose] = useState<{ position: THREE.Vector3, rotation: number } | null>(null);
   
-  // Door State
   const [isOpeningDoor, setIsOpeningDoor] = useState(false);
   const [isDoorOpen, setIsDoorOpen] = useState(false);
 
-  // Pickup State
   const [availableItems, setAvailableItems] = useState(INITIAL_ITEMS);
   const [isPickingUp, setIsPickingUp] = useState(false);
   const [pendingPickup, setPendingPickup] = useState<InventoryItem | null>(null);
 
-  // Push State
   const [isPushing, setIsPushing] = useState(false);
-
-  // Gravity Modifier
   const [globalGravityScale, setGlobalGravityScale] = useState(1.0);
 
   const pendingInteraction = useRef<{ type: 'sit', position: THREE.Vector3, rotation: number } | null>(null);
 
-  // Load Environment Map
   const envMap = useTexture('/images/env.png');
   envMap.mapping = THREE.EquirectangularReflectionMapping;
-  envMap.colorSpace = THREE.SRGBColorSpace;
 
   const handleCharacterUpdate = (data: { x: number; y: number; z: number; rotation: number; animation: string }) => {
       if (socket && socket.connected) {
@@ -112,14 +102,16 @@ export const Experience: React.FC<ExperienceProps> = ({
   };
 
   const handleFloorClick = (point: THREE.Vector3) => {
-    if (isSitting) {
-        setIsSitting(false);
-        setSitPose(null);
+    if (controlMode === 'pointToClick') {
+        if (isSitting) {
+            setIsSitting(false);
+            setSitPose(null);
+        }
+        setEmote(null);
+        setTargetLocation(point);
+        pendingInteraction.current = null;
+        if (isPushing) setIsPushing(false);
     }
-    setEmote(null);
-    setTargetLocation(point);
-    pendingInteraction.current = null;
-    if (isPushing) setIsPushing(false);
   };
 
   const handleChairInteract = (entryPos: THREE.Vector3, sitPos: THREE.Vector3, sitRot: number) => {
@@ -232,7 +224,6 @@ export const Experience: React.FC<ExperienceProps> = ({
             <Chair position={[-3, 0, 1]} rotation={[0, Math.PI - 0.4, 0]} onInteract={handleChairInteract} />
         </group>
 
-        {/* --- 新增交互区域 --- */}
         <group position={[-20, 0, 15]}>
             <LaserFence position={[0, 0, 0]} width={8} />
             <LaserFence position={[0, 0.5, 5]} width={8} rotation={[0, 0.2, 0]} />
@@ -251,15 +242,17 @@ export const Experience: React.FC<ExperienceProps> = ({
             position={[5, 0, -15]} 
             onGravityChange={(scale) => setGlobalGravityScale(scale)} 
         />
-        {/* --- --- --- */}
 
         <JumpPad position={[28, 0, -8]} />
         <DiscoFloor position={[20, 0.05, 12]} rows={3} cols={6} />
         
+        {/* 高台区域 - 修复了缺失的刚体 */}
         <group position={[20, 8, 0]}>
-             <Box args={[14, 0.5, 6]} receiveShadow>
-                 <meshStandardMaterial color="#222" metalness={0.8} roughness={0.4} transparent opacity={0.9} />
-             </Box>
+             <RigidBody type="fixed">
+                <Box args={[14, 0.5, 6]} receiveShadow>
+                    <meshStandardMaterial color="#222" metalness={0.8} roughness={0.4} transparent opacity={0.9} />
+                </Box>
+             </RigidBody>
              {availableItems.find(i => i.id === 'item-3') && (
                  <ItemPickup 
                     item={availableItems.find(i => i.id === 'item-3')!} 
@@ -281,6 +274,14 @@ export const Experience: React.FC<ExperienceProps> = ({
             label="前往地面" 
             color="#ff00ff" 
         />
+       <group>
+            <SpeedPad position={[-15, 0, 10]} direction={[0, 0, -1]} boostStrength={50} />
+            <SpeedPad position={[-15, 0, 0]} direction={[0, 0, -1]} boostStrength={50} />
+            <SpeedPad position={[-15, 0, -12]} direction={[1, 0, 0]} boostStrength={50} />
+            <SpeedPad position={[-5, 0, -12]} direction={[0, 0, 1]} boostStrength={50} />
+            <SpeedPad position={[-5, 0, 0]} direction={[0, 0, 1]} boostStrength={50} />
+            <SpeedPad position={[-5, 0, 10]} direction={[-1, 0, 0]} boostStrength={50} />
+        </group>
 
         <group position={[-10, 0, 5]}>
              <RigidBody type="fixed">
@@ -303,7 +304,7 @@ export const Experience: React.FC<ExperienceProps> = ({
 
       </Physics>
 
-      <TargetMarker position={targetLocation} />
+      <TargetMarker position={controlMode === 'pointToClick' ? targetLocation : null} />
     </>
   );
 };

@@ -94,7 +94,7 @@ export const GravityTerminal = ({ position, onGravityChange }: { position: [numb
 
             {isNear && (
                 <Html position={[0, 2, 0]} center>
-                    <div className="flex flex-col items-center pointer-events-auto">
+                    <div className="flex flex-col items-center pointer-events-auto w-[200px]">
                         <button 
                             onClick={cycleMode}
                             className="bg-black/90 border-2 px-4 py-2 rounded font-mono text-xs flex items-center gap-2 backdrop-blur-md shadow-lg transition-all active:scale-95"
